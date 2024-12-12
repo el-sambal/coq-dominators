@@ -73,7 +73,13 @@ Inductive reachable_in_tree : flow_graph -> nat -> nat -> Prop :=
         reachable_in_tree fg n k.
 
 (* The global flow-graph that we work on *)
-Variable FG : flow_graph.
+Variable (num_nodes : nat).
+Variable (tree_edges: nat -> nat -> Prop).
+Variable (other_edges: nat -> nat -> Prop).
+Variable (start_time: nat -> nat).
+Variable (finish_time: nat -> nat).
+Definition FG : flow_graph :=
+  flowgr num_nodes tree_edges other_edges start_time finish_time.
 
 (* there exists a possibly empty path from A to B in the DFS tree *)
 Notation "A -*> B" := (reachable_in_tree FG A B) (at level 70).
@@ -81,8 +87,6 @@ Notation "A -*> B" := (reachable_in_tree FG A B) (at level 70).
 (* there exists a nonempty path from A to B in the DFS tree *)
 Notation "A -+> B" := ((A -*> B) /\ (A <> B)) (at level 70).
 
-(*
 (* the start time of A is <= the start time of B *)
 Notation "A <:= B" := (start_time A <= start_time B) (at level 70).
-*)
 
