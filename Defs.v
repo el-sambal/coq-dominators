@@ -1,8 +1,8 @@
 Require Import PeanoNat.
 
-(*-----------------------------------------------------------------------------*)
-(*-------------------------------- DEFINITIONS --------------------------------*)
-(*-----------------------------------------------------------------------------*)
+(*----------------------------------------------------------------------------*)
+(*-------------------------------- DEFINITIONS -------------------------------*)
+(*----------------------------------------------------------------------------*)
 
 Inductive flow_graph :=
   | flowgr
@@ -81,6 +81,15 @@ Variable (finish_time: nat -> nat).
 Definition FG : flow_graph :=
   flowgr num_nodes tree_edges other_edges start_time finish_time.
 
+(* there is a tree edge from A to B *)
+Notation "A --> B" := (tree_edges A B) (at level 70).
+
+(* there is a non-tree edge from A to B *)
+Notation "A ~~> B" := (other_edges A B) (at level 70).
+
+(* there is an edge (either tree or non-tree) from A to B *)
+Notation "A ==> B" := (A --> B \/ A ~~> B) (at level 70).
+
 (* there exists a possibly empty path from A to B in the DFS tree *)
 Notation "A -*> B" := (reachable_in_tree FG A B) (at level 70).
 
@@ -90,3 +99,65 @@ Notation "A -+> B" := ((A -*> B) /\ (A <> B)) (at level 70).
 (* the start time of A is <= the start time of B *)
 Notation "A <:= B" := (start_time A <= start_time B) (at level 70).
 
+(* the start time of A is < the start time of B *)
+Notation "A <: B" := (start_time A < start_time B) (at level 70).
+
+(* the start time of A is >= the start time of B *)
+Notation "A >:= B" := (start_time A >= start_time B) (at level 70).
+
+(* the start time of A is > the start time of B *)
+Notation "A >: B" := (start_time A > start_time B) (at level 70).
+
+(* sdom_candidate A B is a necessary condition for A = sdom(B) *)
+Inductive sdom_candidate : nat -> nat -> Prop :=
+  | sdc_root : sdom_candidate 0 0 (* sdom(root) := root *)
+  | sdc_edge (n m : nat) :
+      n --> m -> sdom_candidate n m
+  | sdc_trans (n m k : nat) :
+      n --> m /\ m >: k /\ sdom_candidate m k ->
+        sdom_candidate n k.
+
+
+Definition sdom_cand_dec : forall n m,
+  { sdom_candidate n m } + { ~sdom_candidate n m }.
+Admitted. (* ugly... *)
+
+(* Returns the smallest sdom-candidate of n that is >= m.
+ * The third argument is to ensure termination. *)
+Fixpoint sdom_helper (n m count : nat) : nat :=
+  match count with
+  | 0 => num_nodes (* unreachable *)
+  | S ctr => if sdom_cand_dec n m
+             then m
+             else sdom_helper n (m+1) ctr
+  end.
+
+(* Returns the minimum of all sdom-candidates.
+ * Returns 0 for the root node. *)
+Definition sdom (n : nat) : nat :=
+  sdom_helper n 0 num_nodes.
+
+(* reachable_wo W A B <=> node B is reachable from node A
+ * using either tree edges or non-tree edges or both,
+ * _without visiting node W_ on the way (and W<>A,B). *)
+Inductive reachable_wo : nat -> nat -> nat -> Prop :=
+  | rwo_refl (wo n : nat) :
+      (node_in_fg FG n = true /\ n <> wo) -> reachable_wo wo n n
+  | rwo_edge  (wo n m : nat) :
+      (n ==> m /\ n <> wo /\ m <> wo) ->
+        reachable_wo wo n m
+  | rwo_trans  (wo n m k : nat) :
+      reachable_wo wo n m -> reachable_wo wo m k ->
+        reachable_wo wo n k.
+
+(* dom A B <=> A dominates B, i.e.,
+ * every path from the root to B must go through A. *)
+Inductive dom : nat -> nat -> Prop := 
+  | is_dom (n m : nat) : ~(reachable_wo n 0 m) -> dom n m.
+
+(* idom A B <=> A is the immediate dominator of B, i.e.,
+ * A dominates B and every other dominator of B dominates A. *)
+Inductive idom : nat -> nat -> Prop :=
+  | is_idom (n m : nat) : (dom n m /\ forall k : nat,
+      node_in_fg FG k = true -> dom k m -> dom k n) ->
+        idom n m.
