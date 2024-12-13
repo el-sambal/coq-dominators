@@ -117,25 +117,12 @@ Inductive sdom_candidate : nat -> nat -> Prop :=
       n --> m /\ m >: k /\ sdom_candidate m k ->
         sdom_candidate n k.
 
-
-Definition sdom_cand_dec : forall n m,
-  { sdom_candidate n m } + { ~sdom_candidate n m }.
-Admitted. (* ugly... *)
-
-(* Returns the smallest sdom-candidate of n that is >= m.
- * The third argument is to ensure termination. *)
-Fixpoint sdom_helper (n m count : nat) : nat :=
-  match count with
-  | 0 => num_nodes (* unreachable *)
-  | S ctr => if sdom_cand_dec n m
-             then m
-             else sdom_helper n (m+1) ctr
-  end.
-
-(* Returns the minimum of all sdom-candidates.
- * Returns 0 for the root node. *)
-Definition sdom (n : nat) : nat :=
-  sdom_helper n 0 num_nodes.
+(* sdom A B <=> A is the semidominator of B,
+ * or A and B are both the root node. *)
+Inductive sdom : nat -> nat -> Prop :=
+  | is_sdom (n m : nat) : (sdom_candidate n m /\
+      forall c, sdom_candidate c m -> n <:= c) ->
+        sdom n m.
 
 (* reachable_wo W A B <=> node B is reachable from node A
  * using either tree edges or non-tree edges or both,
