@@ -117,12 +117,12 @@ Inductive sdom_candidate : nat -> nat -> Prop :=
       n --> m /\ m >: k /\ sdom_candidate m k ->
         sdom_candidate n k.
 
-(* sdom A B <=> A is the semidominator of B,
+(* is_sdom_of A B <=> A is the semidominator of B,
  * or A and B are both the root node. *)
-Inductive sdom : nat -> nat -> Prop :=
+Inductive is_sdom_of : nat -> nat -> Prop :=
   | is_sdom (n m : nat) : (sdom_candidate n m /\
       forall c, sdom_candidate c m -> n <:= c) ->
-        sdom n m.
+        is_sdom_of n m.
 
 (* reachable_wo W A B <=> node B is reachable from node A
  * using either tree edges or non-tree edges or both,
@@ -142,11 +142,64 @@ Inductive reachable_wo : nat -> nat -> nat -> Prop :=
 Inductive dom : nat -> nat -> Prop := 
   | is_dom (n m : nat) : ~(reachable_wo n 0 m) -> dom n m.
 
-(* idom A B <=> A is the immediate dominator of B, i.e.,
+(* is_idom_of A B <=> A is the immediate dominator of B, i.e.,
  * A dominates B and every other dominator of B dominates A. *)
-Inductive idom : nat -> nat -> Prop :=
+Inductive is_idom_of : nat -> nat -> Prop :=
   | is_idom (n m : nat) : (dom n m /\ forall k : nat,
       node_in_fg k = true -> dom k m -> dom k n) ->
-        idom n m.
+        is_idom_of n m.
+
+(* Each node in the flowgraph has exactly one semidominator *)
+Theorem sdom_unique : forall n : nat, node_in_fg n = true -> (exists sd : nat, forall sd' : nat, sd = sd' <-> is_sdom_of sd' n).
+Proof. Admitted.
+
+(* Each node in the flowgraph has exactly one immediate dominator *)
+Theorem LT_Theorem1_Part1 : forall n : nat, node_in_fg n = true -> (exists id : nat, forall id' : nat, id = id' <-> is_idom_of id' n).
+Proof. Admitted.
+
+(* The immediate dominator function *)
+Definition idom : nat -> nat. Admitted.
+Axiom idom_function : forall n : nat, is_idom_of (idom n) n.
+
+(* The semidominator function *)
+Definition sdom : nat -> nat. Admitted.
+Axiom sdom_function : forall n : nat, is_sdom_of (idom n) n.
+
+(* If v, w are vertices of G such that v <:= w, then any
+ * path from v to w contains some common ancestor of
+ * v and w in the DFS tree. *)
+Theorem LT_Lemma1 : True (* TODO *).
+Proof. Admitted.
+
+Theorem LT_Lemma2 : forall w : nat, (node_in_fg w = true /\ w <> 0) -> idom w -+> w.
+Proof. Admitted.
+
+Theorem LT_Lemma3 : forall w : nat, (node_in_fg w = true /\ w <> 0) -> sdom w -+> w.
+Proof. Admitted.
+
+Theorem LT_Lemma4 : forall w : nat, (node_in_fg w = true /\ w <> 0) -> idom w -*> sdom w.
+Proof. Admitted.
+
+Theorem LT_Lemma5 : forall v w : nat, (node_in_fg v = true /\ node_in_fg w = true /\ v -*> w) -> (v -*> idom w \/ idom w -*> idom v).
+Proof. Admitted.
 
 
+Theorem LT_Theorem1_Part2 : True (* TODO *).
+Proof. Admitted.
+
+Theorem LT_Theorem2 :
+  forall w : nat, node_in_fg w = true ->
+    (
+      (w <> 0 /\ (forall u, (node_in_fg u = true /\ sdom w -+> u /\ u -*> w) -> sdom u >:= sdom w)
+    ) -> idom w = sdom w).
+Proof. Admitted.
+
+Theorem LT_Theorem3 : True (* TODO *).
+Proof. Admitted.
+
+Theorem LT_Theorem4 : True (* TODO *).
+Proof. Admitted.
+
+
+Theorem LT_Corollary1 : True (* TODO *).
+Proof. Admitted.
