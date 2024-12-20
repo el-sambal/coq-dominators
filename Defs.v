@@ -165,7 +165,8 @@ Axiom idom_function : forall n : nat, is_idom_of (idom n) n.
 Definition sdom : nat -> nat. Admitted.
 Axiom sdom_function : forall n : nat, is_sdom_of (idom n) n.
 
-(* If v, w are vertices of G such that v <:= w, then any
+(* Lengauer, Tarjan:
+ * If v, w are vertices of G such that v <:= w, then any
  * path from v to w contains some common ancestor of
  * v and w in the DFS tree. *)
 Theorem LT_Lemma1 : True (* TODO *).
@@ -194,12 +195,32 @@ Theorem LT_Theorem2 :
     ) -> idom w = sdom w).
 Proof. Admitted.
 
-Theorem LT_Theorem3 : True (* TODO *).
+(* Lengauer, Tarjan:
+ * Let w <> r and let u be a vertex for which sdom(u) is minimum
+ * among vertices u satisfying sdom(w) -+> u -*> w.
+ * Then sdom(u) <:= sdom(w) and idom(u) = idom(w).
+ *)
+Theorem LT_Theorem3 :
+  forall w u : nat, w <> 0 -> node_in_fg u = true -> node_in_fg w = true ->
+      (sdom w -+> u /\ u -*> w) ->
+        (forall u' : nat, (sdom w -+> u' /\ u' -*> w) -> u <:= u') ->
+    (sdom u <:= sdom w /\ idom u = idom w).
 Proof. Admitted.
 
 Theorem LT_Theorem4 : True (* TODO *).
 Proof. Admitted.
 
 
-Theorem LT_Corollary1 : True (* TODO *).
+(* Lengauer, Tarjan:
+ * Let w <> r and let u be a vertex for which sdom(u) is minimum
+ * among vertices u satisfying sdom(w) -+> u -*> w.
+ * Then idom(w) = sdom(w) if sdom(w)=sdom(u), and
+ * idom(w) = idom(u) otherwise.
+ *)
+Theorem LT_Corollary1 :
+  forall w u : nat, w <> 0 -> node_in_fg u = true -> node_in_fg w = true ->
+      (sdom w -+> u /\ u -*> w) ->
+        (forall u' : nat, (sdom w -+> u' /\ u' -*> w) -> u <:= u') ->
+    ((sdom w = sdom u -> idom w = sdom w) /\
+     (sdom w <> sdom u -> idom w = idom u)).
 Proof. Admitted.
