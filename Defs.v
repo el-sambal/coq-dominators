@@ -68,9 +68,8 @@ Definition flow_graph_is_valid (fg : flow_graph) : Prop :=
        forall p : nat, tree_edges p n -> start_time p < start_time n)
   end.
 
-Definition node_in_fg
-    (n : nat) : bool :=
-  Nat.ltb n num_nodes.
+(* This node exists within the flow graph *)
+Definition node_in_fg (n : nat) := n < num_nodes.
 
 (* there is a tree edge from A to B *)
 Notation "A --> B" := (tree_edges A B) (at level 70).
@@ -80,7 +79,7 @@ Notation "A ~~> B" := (other_edges A B) (at level 70).
   
 Inductive reachable_in_tree : nat -> nat -> Prop :=
   | rit_refl (n : nat) :
-      node_in_fg n = true -> reachable_in_tree n n
+      node_in_fg n -> reachable_in_tree n n
   | rit_edge (n m : nat) :
       (n --> m) -> reachable_in_tree n m
   | rit_trans (n m k : nat) :
@@ -129,7 +128,7 @@ Inductive is_sdom_of : nat -> nat -> Prop :=
  * _without visiting node W_ on the way (and W<>A,B). *)
 Inductive reachable_wo : nat -> nat -> nat -> Prop :=
   | rwo_refl (wo n : nat) :
-      (node_in_fg n = true /\ n <> wo) -> reachable_wo wo n n
+      (node_in_fg n /\ n <> wo) -> reachable_wo wo n n
   | rwo_edge  (wo n m : nat) :
       (n ==> m /\ n <> wo /\ m <> wo) ->
         reachable_wo wo n m
@@ -146,18 +145,18 @@ Inductive dom : nat -> nat -> Prop :=
  * A dominates B and every other dominator of B dominates A. *)
 Inductive is_idom_of : nat -> nat -> Prop :=
   | is_idom (n m : nat) : (dom n m /\ forall k : nat,
-      node_in_fg k = true -> dom k m -> dom k n) ->
+      node_in_fg k -> dom k m -> dom k n) ->
         is_idom_of n m.
 
 (* Each node in the flowgraph has exactly one semidominator *)
 Theorem sdom_unique :
-  forall n : nat, node_in_fg n = true ->
+  forall n : nat, node_in_fg n ->
     (exists sd : nat, forall sd' : nat, sd = sd' <-> is_sdom_of sd' n).
 Proof. Admitted.
 
 (* Each node in the flowgraph has exactly one immediate dominator *)
 Theorem LT_Theorem1_Part1 :
-  forall n : nat, node_in_fg n = true ->
+  forall n : nat, node_in_fg n ->
     (exists id : nat, forall id' : nat, id = id' <-> is_idom_of id' n).
 Proof. Admitted.
 
@@ -176,17 +175,17 @@ Axiom sdom_function : forall n : nat, is_sdom_of (idom n) n.
 Theorem LT_Lemma1 : True (* TODO *).
 Proof. Admitted.
 
-Theorem LT_Lemma2 : forall w : nat, (node_in_fg w = true /\ w <> 0) -> idom w -+> w.
+Theorem LT_Lemma2 : forall w : nat, (node_in_fg w /\ w <> 0) -> idom w -+> w.
 Proof. Admitted.
 
-Theorem LT_Lemma3 : forall w : nat, (node_in_fg w = true /\ w <> 0) -> sdom w -+> w.
+Theorem LT_Lemma3 : forall w : nat, (node_in_fg w /\ w <> 0) -> sdom w -+> w.
 Proof. Admitted.
 
-Theorem LT_Lemma4 : forall w : nat, (node_in_fg w = true /\ w <> 0) -> idom w -*> sdom w.
+Theorem LT_Lemma4 : forall w : nat, (node_in_fg w /\ w <> 0) -> idom w -*> sdom w.
 Proof. Admitted.
 
 Theorem LT_Lemma5 :
-  forall v w : nat, (node_in_fg v = true /\ node_in_fg w = true /\ v -*> w) ->
+  forall v w : nat, (node_in_fg v /\ node_in_fg w /\ v -*> w) ->
     (v -*> idom w \/ idom w -*> idom v).
 Proof. Admitted.
 
@@ -195,9 +194,9 @@ Theorem LT_Theorem1_Part2 : True (* TODO *).
 Proof. Admitted.
 
 Theorem LT_Theorem2 :
-  forall w : nat, node_in_fg w = true ->
+  forall w : nat, node_in_fg w ->
     (
-      (w <> 0 /\ (forall u, (node_in_fg u = true /\ sdom w -+> u /\ u -*> w) -> sdom u >:= sdom w)
+      (w <> 0 /\ (forall u, (node_in_fg u /\ sdom w -+> u /\ u -*> w) -> sdom u >:= sdom w)
     ) -> idom w = sdom w).
 Proof. Admitted.
 
@@ -207,7 +206,7 @@ Proof. Admitted.
  * Then sdom(u) <:= sdom(w) and idom(u) = idom(w).
  *)
 Theorem LT_Theorem3 :
-  forall w u : nat, w <> 0 -> node_in_fg u = true -> node_in_fg w = true ->
+  forall w u : nat, w <> 0 -> node_in_fg u -> node_in_fg w ->
       (sdom w -+> u /\ u -*> w) ->
         (forall u' : nat, (sdom w -+> u' /\ u' -*> w) -> u <:= u') ->
     (sdom u <:= sdom w /\ idom u = idom w).
@@ -221,7 +220,7 @@ Proof. Admitted.
  * idom(w) = idom(u) otherwise.
  *)
 Theorem LT_Corollary1 :
-  forall w u : nat, w <> 0 -> node_in_fg u = true -> node_in_fg w = true ->
+  forall w u : nat, w <> 0 -> node_in_fg u -> node_in_fg w ->
       (sdom w -+> u /\ u -*> w) ->
         (forall u' : nat, (sdom w -+> u' /\ u' -*> w) -> u <:= u') ->
     ((sdom w = sdom u -> idom w = sdom w) /\
@@ -238,16 +237,16 @@ Proof. Admitted.
           ).
  *)
 Theorem LT_Theorem4 :
-  forall w : nat, w <> 0 -> node_in_fg w = true ->
+  forall w : nat, w <> 0 -> node_in_fg w ->
   (
     (sdom w ==> w /\ sdom w <: w) \/
-      (exists u v : nat, node_in_fg u = true /\ node_in_fg v = true /\ u >: w /\ v ==> w /\ u -*> v)
+      (exists u v : nat, node_in_fg u /\ node_in_fg v /\ u >: w /\ v ==> w /\ u -*> v)
   )
   /\
   (
-  forall w' : nat, node_in_fg w' = true -> (
+  forall w' : nat, node_in_fg w' -> (
       (sdom w' ==> w' /\ sdom w' <: w') \/
-        (exists u v : nat, node_in_fg u = true /\ node_in_fg v = true /\ u >: w' /\ v ==> w' /\ u -*> v)
+        (exists u v : nat, node_in_fg u /\ node_in_fg v /\ u >: w' /\ v ==> w' /\ u -*> v)
     ) -> w <:= w'
   )
 .
