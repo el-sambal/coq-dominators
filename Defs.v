@@ -150,11 +150,15 @@ Inductive is_idom_of : nat -> nat -> Prop :=
         is_idom_of n m.
 
 (* Each node in the flowgraph has exactly one semidominator *)
-Theorem sdom_unique : forall n : nat, node_in_fg n = true -> (exists sd : nat, forall sd' : nat, sd = sd' <-> is_sdom_of sd' n).
+Theorem sdom_unique :
+  forall n : nat, node_in_fg n = true ->
+    (exists sd : nat, forall sd' : nat, sd = sd' <-> is_sdom_of sd' n).
 Proof. Admitted.
 
 (* Each node in the flowgraph has exactly one immediate dominator *)
-Theorem LT_Theorem1_Part1 : forall n : nat, node_in_fg n = true -> (exists id : nat, forall id' : nat, id = id' <-> is_idom_of id' n).
+Theorem LT_Theorem1_Part1 :
+  forall n : nat, node_in_fg n = true ->
+    (exists id : nat, forall id' : nat, id = id' <-> is_idom_of id' n).
 Proof. Admitted.
 
 (* The immediate dominator function *)
@@ -181,7 +185,9 @@ Proof. Admitted.
 Theorem LT_Lemma4 : forall w : nat, (node_in_fg w = true /\ w <> 0) -> idom w -*> sdom w.
 Proof. Admitted.
 
-Theorem LT_Lemma5 : forall v w : nat, (node_in_fg v = true /\ node_in_fg w = true /\ v -*> w) -> (v -*> idom w \/ idom w -*> idom v).
+Theorem LT_Lemma5 :
+  forall v w : nat, (node_in_fg v = true /\ node_in_fg w = true /\ v -*> w) ->
+    (v -*> idom w \/ idom w -*> idom v).
 Proof. Admitted.
 
 
@@ -207,9 +213,6 @@ Theorem LT_Theorem3 :
     (sdom u <:= sdom w /\ idom u = idom w).
 Proof. Admitted.
 
-Theorem LT_Theorem4 : True (* TODO *).
-Proof. Admitted.
-
 
 (* Lengauer, Tarjan:
  * Let w <> r and let u be a vertex for which sdom(u) is minimum
@@ -223,4 +226,29 @@ Theorem LT_Corollary1 :
         (forall u' : nat, (sdom w -+> u' /\ u' -*> w) -> u <:= u') ->
     ((sdom w = sdom u -> idom w = sdom w) /\
      (sdom w <> sdom u -> idom w = idom u)).
+Proof. Admitted.
+
+(* THE FINAL RESULT WE WANT TO PROVE *)
+(* Lengauer, Tarjan:
+ * If w is not the root node, then
+   w = min(
+           {v | v ==> w and v <: w}
+             union
+           {sdom(u) | u >: w and there is an edge v ==> w such that u -*> v}
+          ).
+ *)
+Theorem LT_Theorem4 :
+  forall w : nat, w <> 0 -> node_in_fg w = true ->
+  (
+    (sdom w ==> w /\ sdom w <: w) \/
+      (exists u v : nat, node_in_fg u = true /\ node_in_fg v = true /\ u >: w /\ v ==> w /\ u -*> v)
+  )
+  /\
+  (
+  forall w' : nat, node_in_fg w' = true -> (
+      (sdom w' ==> w' /\ sdom w' <: w') \/
+        (exists u v : nat, node_in_fg u = true /\ node_in_fg v = true /\ u >: w' /\ v ==> w' /\ u -*> v)
+    ) -> w <:= w'
+  )
+.
 Proof. Admitted.
