@@ -86,6 +86,14 @@ Fixpoint path_is_in_tree (a b : nat) (p : path a b) : Prop :=
       tree_edges a' b /\ path_is_in_tree a a' p'
   end.
 
+Lemma path_subpath_left :
+  forall a a' b : nat, forall p : path a b, path_contains a b a' p -> path a a'.
+Proof. Admitted.
+
+Lemma path_subpath_right :
+  forall a a' b : nat, forall p : path a b, path_contains a b a' p -> path a' b.
+Proof. Admitted.
+
 Definition flow_graph_is_valid (fg : flow_graph) : Prop := 
   match fg with
   | flowgr num_nodes tree_edges other_edges start_time finish_time
@@ -236,6 +244,8 @@ Lemma idom_in_fg : forall n : nat, node_in_fg n -> node_in_fg (idom n).
 Proof. Admitted.
 *)
 
+
+
 (* Lengauer, Tarjan:
  * For any vertex w <> r, idom(w) -+> w.
  *)
@@ -259,15 +269,9 @@ Proof.
     destruct H.
     destruct H as [idomw w].
     apply (H path_0_w). }
-  
-
-
-
-
-
-
-
-
+  assert (path idomw w).
+  { apply (path_subpath_right 0 idomw w path_0_w).
+    apply idomw_in_path_0_w. }
 Admitted.
 
 (* Lengauer, Tarjan:
