@@ -35,6 +35,7 @@ Notation "A --> B" := (tree_edges A B) (at level 70).
 (* there is a non-tree edge from A to B *)
 Notation "A ~~> B" := (other_edges A B) (at level 70).
   
+(*
 Inductive reachable_in_tree : nat -> nat -> Prop :=
   | rit_refl (n : nat) :
       node_in_fg n -> reachable_in_tree n n
@@ -43,16 +44,12 @@ Inductive reachable_in_tree : nat -> nat -> Prop :=
   | rit_trans (n m k : nat) :
       reachable_in_tree n m -> reachable_in_tree m k ->
         reachable_in_tree n k.
+*)
 
 
 (* there is an edge (either tree or non-tree) from A to B *)
 Notation "A ==> B" := (A --> B \/ A ~~> B) (at level 70).
 
-(* there exists a possibly empty path from A to B in the DFS tree *)
-Notation "A -*> B" := (reachable_in_tree A B) (at level 70).
-
-(* there exists a nonempty path from A to B in the DFS tree *)
-Notation "A -+> B" := ((A -*> B) /\ (A <> B)) (at level 70).
 
 (* the start time of A is <= the start time of B *)
 Notation "A <:= B" := (start_time A <= start_time B) (at level 70).
@@ -66,7 +63,7 @@ Notation "A >:= B" := (start_time A >= start_time B) (at level 70).
 (* the start time of A is > the start time of B *)
 Notation "A >: B" := (start_time A > start_time B) (at level 70).
 
-Inductive path (a b:nat) : Type :=
+Inductive path (a b : nat) : Type :=
   | path_refl :
       a = b -> path a b
   | path_append (a' : nat) :
@@ -86,13 +83,31 @@ Fixpoint path_is_in_tree (a b : nat) (p : path a b) : Prop :=
       tree_edges a' b /\ path_is_in_tree a a' p'
   end.
 
+(* there exists a possibly empty path from A to B in the DFS tree *)
+Notation "A -*> B" := (exists p : path A B, path_is_in_tree A B p) (at level 70).
+
+(* there exists a nonempty path from A to B in the DFS tree *)
+Notation "A -+> B" := ((A -*> B) /\ (A <> B)) (at level 70).
+
+(*
 Lemma path_subpath_left :
   forall a a' b : nat, forall p : path a b, path_contains a b a' p -> path a a'.
 Proof. Admitted.
+*)
 
-Lemma path_subpath_right :
-  forall a a' b : nat, forall p : path a b, path_contains a b a' p -> path a' b.
-Proof. Admitted.
+(* If a path consists only of tree edges, then any (right-)subpath also
+ * consists only of tree edges. *)
+Lemma path_subpath_in_tree_right :
+  forall a a' b : nat, forall p : path a b, path_contains a b a' p ->
+    path_is_in_tree a b p -> exists p' : path a' b, path_is_in_tree a' b p'.
+Proof.
+  intros.
+  induction p.
+  {
+
+  }
+
+Qed.
 
 Definition flow_graph_is_valid (fg : flow_graph) : Prop := 
   match fg with
@@ -183,7 +198,7 @@ Inductive reachable_wo : nat -> nat -> nat -> Prop :=
 (* dom A B <=> A dominates B, i.e.,
  * every path from the root to B must go through A, and A<>B. *)
 Inductive dom : nat -> nat -> Prop :=
-  | is_dom (n m : nat) :
+  | is_dom (n m : nat) : n <> m ->
       (forall p : path 0 m, path_contains 0 m n p) -> dom n m.
 (* (* old definition: not convenient *)
 Inductive dom : nat -> nat -> Prop := 
@@ -194,7 +209,7 @@ Inductive dom : nat -> nat -> Prop :=
 (* is_idom_of A B <=> A is the immediate dominator of B, i.e.,
  * A dominates B and every other dominator of B dominates A. *)
 Inductive is_idom_of : nat -> nat -> Prop :=
-  | is_idom (n m : nat) : (dom n m /\ forall k : nat,
+  | is_idom (n m : nat) : dom n m -> (forall k : nat,
       node_in_fg k -> dom k m -> dom k n) ->
         is_idom_of n m.
 
@@ -262,17 +277,25 @@ Proof.
   *)
   assert (exists p : path 0 w, path_is_in_tree 0 w p) as exists_path_0_w.
   { apply FG_valid.
-    apply H0. }
+    trivial. }
   destruct exists_path_0_w as [path_0_w tree_path].
   assert (path_contains 0 w idomw path_0_w) as idomw_in_path_0_w.
-  { destruct H as [idomw w].
+  {
+    repeat (destruct H as [idomw w]).
+    trivial.
+  }
+  assert (exists p' : path idomw w, path_is_in_tree idomw w p').
+  { apply (path_subpath_in_tree_right 0 idomw w path_0_w).
+    apply idomw_in_path_0_w.
+    assumption. }
+  split.
+  { trivial. }
+  { destruct H.
     destruct H.
-    destruct H as [idomw w].
-    apply (H path_0_w). }
-  assert (path idomw w).
-  { apply (path_subpath_right 0 idomw w path_0_w).
-    apply idomw_in_path_0_w. }
-Admitted.
+    trivial. }
+Qed.
+
+Print Assumptions LT_Lemma2.
 
 (* Lengauer, Tarjan:
  * For any vertex w <> r, sdom(w) -+> w.
