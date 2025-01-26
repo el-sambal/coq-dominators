@@ -66,21 +66,21 @@ Notation "A >: B" := (start_time A > start_time B) (at level 70).
 Inductive path (a b : nat) : Type :=
   | path_refl :
       a = b -> path a b
-  | path_append (a' : nat) :
-      path a a' -> a' ==> b -> path a b.
+  | path_prepend (a' : nat) (p' : path a' b) :
+      a ==> a' -> path a b.
 
 Fixpoint path_contains (a b k : nat) (p : path a b) : Prop :=
   match p with 
   | path_refl _ _ _ => b = k
-  | path_append _ _ a' p' _ =>
-      b = k \/ path_contains a a' k p'
+  | path_prepend _ _ a' p' _ =>
+      a = k \/ path_contains a' b k p'
   end.
 
 Fixpoint path_is_in_tree (a b : nat) (p : path a b) : Prop :=
   match p with 
   | path_refl _ _ _ => True
-  | path_append _ _ a' p' _ =>
-      tree_edges a' b /\ path_is_in_tree a a' p'
+  | path_prepend _ _ a' p' _ =>
+      tree_edges a a' /\ path_is_in_tree a' b p'
   end.
 
 (* there exists a possibly empty path from A to B in the DFS tree *)
@@ -102,11 +102,28 @@ Lemma path_subpath_in_tree_right :
     path_is_in_tree a b p -> exists p' : path a' b, path_is_in_tree a' b p'.
 Proof.
   intros.
-  induction p.
-  {
-
+  induction p as [a b | a b a'' p''].
+  { (* Base case: p is path_refl. We use that a = a' = b. *)
+    assert (b = a'). { destruct H. trivial. } 
+    assert (e' := e).
+    rewrite H1 in e'.
+    rewrite <- e'.
+    exists (path_refl a b e).
+    trivial.
   }
-
+  { (* Inductive case: p is path_prepend. *)
+    destruct H.
+    { (* Case 1: a = a' (the paths a-to-b and a'-to-b are equal). *)
+      rewrite <- H.
+      exists (path_prepend a b a'' p'' o).
+      trivial.
+    }
+    { (* Case 2: path_contains a'' b a' p''
+       * (a' is in remainder of path). *)
+      destruct H0.
+      apply IHp''; trivial.
+    }
+  }
 Qed.
 
 Definition flow_graph_is_valid (fg : flow_graph) : Prop := 
