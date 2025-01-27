@@ -1,9 +1,5 @@
 Require Import PeanoNat.
 
-(*----------------------------------------------------------------------------*)
-(*-------------------------------- DEFINITIONS -------------------------------*)
-(*----------------------------------------------------------------------------*)
-
 Section Dominators.
 
 Inductive flow_graph :=
@@ -25,7 +21,6 @@ Variable (finish_time: nat -> nat).
 Definition FG : flow_graph :=
   flowgr num_nodes tree_edges other_edges start_time finish_time.
 
-
 (* This node exists within the flow graph *)
 Definition node_in_fg (n : nat) := n < num_nodes.
 
@@ -35,21 +30,8 @@ Notation "A --> B" := (tree_edges A B) (at level 70).
 (* there is a non-tree edge from A to B *)
 Notation "A ~~> B" := (other_edges A B) (at level 70).
   
-(*
-Inductive reachable_in_tree : nat -> nat -> Prop :=
-  | rit_refl (n : nat) :
-      node_in_fg n -> reachable_in_tree n n
-  | rit_edge (n m : nat) :
-      (n --> m) -> reachable_in_tree n m
-  | rit_trans (n m k : nat) :
-      reachable_in_tree n m -> reachable_in_tree m k ->
-        reachable_in_tree n k.
-*)
-
-
 (* there is an edge (either tree or non-tree) from A to B *)
 Notation "A ==> B" := (A --> B \/ A ~~> B) (at level 70).
-
 
 (* the start time of A is <= the start time of B *)
 Notation "A <:= B" := (start_time A <= start_time B) (at level 70).
@@ -133,14 +115,13 @@ Definition flow_graph_is_valid (fg : flow_graph) : Prop :=
      (* Each node is reachable from the root *)
      (forall n : nat, node_in_fg n ->
         exists p : path 0 n, path_is_in_tree 0 n p)
+     /\
+     (* Each node except the root has a tree-parent. *)
+     (forall n : nat, node_in_fg n -> exists par : nat, par --> n)
      (* NOTE: the rest is commented out because I haven't yet used them
       * in proofs. This way, we don't assume unnecessary stuff. *)
      (*
-        /\
-        (* Each node except the root has exactly one parent. *)
-        (forall n : nat, (1 <= n < num_nodes) ->
-          (exists p : nat, forall p' : nat,
-            tree_edges p' n <-> p = p'))
+        (* Parents are unique *)
         /\
         (* The root does not have a parent *)
         (forall p : nat, ~(tree_edges p 0))
@@ -196,32 +177,11 @@ Inductive is_sdom_of : nat -> nat -> Prop :=
       forall c, sdom_candidate c m -> n <:= c) ->
         is_sdom_of n m.
 
-(* reachable_wo W A B <=> node B is reachable from node A
- * using either tree edges or non-tree edges or both,
- * _without visiting node W_ on the way.
- * Note: we don't really care about the case W=A or W=B;
- * the definition of [dom] takes care of that.
- *)
-Inductive reachable_wo : nat -> nat -> nat -> Prop :=
-  | rwo_refl (wo n : nat) :
-      (node_in_fg n /\ n <> wo) -> reachable_wo wo n n
-  | rwo_edge  (wo n m : nat) :
-      (n ==> m /\ n <> wo /\ m <> wo) ->
-        reachable_wo wo n m
-  | rwo_trans  (wo n m k : nat) :
-      reachable_wo wo n m -> reachable_wo wo m k ->
-        reachable_wo wo n k.
-
 (* dom A B <=> A dominates B, i.e.,
  * every path from the root to B must go through A, and A<>B. *)
 Inductive dom : nat -> nat -> Prop :=
   | is_dom (n m : nat) : n <> m ->
       (forall p : path 0 m, path_contains 0 m n p) -> dom n m.
-(* (* old definition: not convenient *)
-Inductive dom : nat -> nat -> Prop := 
-  | is_dom (n m : nat) : node_in_fg n -> node_in_fg m ->
-      ~(reachable_wo n 0 m) -> n <> m -> dom n m.
-*)
 
 (* is_idom_of A B <=> A is the immediate dominator of B, i.e.,
  * A dominates B and every other dominator of B dominates A. *)
@@ -230,53 +190,20 @@ Inductive is_idom_of : nat -> nat -> Prop :=
       node_in_fg k -> dom k m -> dom k n) ->
         is_idom_of n m.
 
-(*
-(* Each node in the flowgraph has exactly one semidominator *)
-Theorem sdom_unique :
-  forall n : nat, node_in_fg n ->
-    (exists sd : nat, forall sd' : nat, sd = sd' <-> is_sdom_of sd' n).
-Proof. Admitted.
-*)
-
 (* Each node w <> r in the flowgraph has exactly one immediate dominator *)
 Theorem LT_Theorem1_Part1 :
   forall n : nat, node_in_fg n ->
     (exists id : nat, forall id' : nat, id = id' <-> is_idom_of id' n).
 Proof. Admitted.
 
-(* (* unused: we prefer to use quantifiers. *)
-  (* The immediate dominator function *)
-  Definition idom : nat -> nat. Admitted.
-  Axiom idom_function : forall n : nat, is_idom_of (idom n) n.
-  
-  (* The semidominator function *)
-  Definition sdom : nat -> nat. Admitted.
-  Axiom sdom_function : forall n : nat, is_sdom_of (idom n) n.
-*)
-
 (* Lengauer, Tarjan:
  * If v, w are vertices of G such that v <:= w, then any
  * path from v to w contains some common ancestor of
  * v and w in the DFS tree. *)
-Theorem LT_Lemma1 : True (* TODO *).
+Theorem LT_Lemma1 : 
+  forall v w : nat, v <:= w -> forall p : path v w,
+    exists m : nat, path_contains v w m p /\ m -*> v /\ m -*> w.
 Proof. Admitted.
-
-(*
-(* Helper lemma for [LT_Lemma2] *)
-Lemma dominator_reachable : forall n m : nat,
-  node_in_fg n -> node_in_fg m ->
-    ~ reachable_wo n 0 m -> reachable_in_tree n m.
-Proof. 
-Admitted.
-*)
-
-(*
-(* Each immediate dominator is inside the flowgraph. *)
-Lemma idom_in_fg : forall n : nat, node_in_fg n -> node_in_fg (idom n).
-Proof. Admitted.
-*)
-
-
 
 (* Lengauer, Tarjan:
  * For any vertex w <> r, idom(w) -+> w.
@@ -286,21 +213,17 @@ Theorem LT_Lemma2 :
     w <> 0 -> idomw -+> w.
 Proof.
   intros.
-  (*
-    Proof idea: all paths from 0 to w must go through idomw.
-    There exists at least one such path that only uses tree edges,
-    as each node is reachable from the root using only tree edges.
-    Therefore, this path must contain a subpath from idomw to w.
-  *)
+  (* Proof idea: all paths from 0 to w must go through idomw.
+   * There exists at least one such path that only uses tree edges,
+   * as each node is reachable from the root using only tree edges.
+   * Therefore, this path must contain a subpath from idomw to w. *)
   assert (exists p : path 0 w, path_is_in_tree 0 w p) as exists_path_0_w.
   { apply FG_valid.
     trivial. }
   destruct exists_path_0_w as [path_0_w tree_path].
   assert (path_contains 0 w idomw path_0_w) as idomw_in_path_0_w.
-  {
-    repeat (destruct H as [idomw w]).
-    trivial.
-  }
+  { repeat (destruct H as [idomw w]).
+    trivial. }
   assert (exists p' : path idomw w, path_is_in_tree idomw w p').
   { apply (path_subpath_in_tree_right 0 idomw w path_0_w).
     apply idomw_in_path_0_w.
@@ -312,15 +235,28 @@ Proof.
     trivial. }
 Qed.
 
-Print Assumptions LT_Lemma2.
-
 (* Lengauer, Tarjan:
  * For any vertex w <> r, sdom(w) -+> w.
  *)
 Theorem LT_Lemma3 :
   forall w sdomw : nat, is_sdom_of sdomw w ->
    (node_in_fg w /\ w <> 0) -> sdomw -+> w.
-Proof. Admitted.
+Proof.
+  intros.
+  destruct H0.
+  (* Part 1: let parw be the tree-parent of w. *)
+  destruct FG_valid as [_ has_parent].
+  assert (exists par : nat, par --> w) as has_parent'.
+  { apply (has_parent w).
+    trivial. }
+  clear has_parent.
+  destruct has_parent' as [parw].
+  (* Part 2: Since parw --> w, sdomw <:= parw <: w, so sdomw <: w. Furthermore, there exists a path from sdomw to w of which all intermediate nodes are >: w. *)
+  destruct H as [sdomw w].
+  destruct H.
+  destruct H.
+
+Qed.
 
 (* Lengauer, Tarjan:
  * For any vertex w <> r, idom(w) -*> sdom(w).
@@ -346,7 +282,7 @@ Proof. Admitted.
  * v dominates w if and only if v is a proper ancestor of w
  * in the dominator tree.
  *
- * XXX: It might not be necessary to prove this to get the final result...
+ * XXX: It is probably not necessary to prove this to get the final result!
  *)
 Theorem LT_Theorem1_Part2 : True (* XXX *).
 Proof. Admitted.
