@@ -51,22 +51,22 @@ Inductive path (a b : nat) : Type :=
   | path_prepend (a' : nat) (p' : path a' b) :
       a ==> a' -> path a b.
 
-Fixpoint path_contains (a b k : nat) (p : path a b) : Prop :=
+Fixpoint path_contains {a b : nat} (k : nat) (p : path a b) : Prop :=
   match p with 
   | path_refl _ _ _ => b = k
   | path_prepend _ _ a' p' _ =>
-      a = k \/ path_contains a' b k p'
+      a = k \/ path_contains k p'
   end.
 
-Fixpoint path_is_in_tree (a b : nat) (p : path a b) : Prop :=
+Fixpoint path_is_in_tree {a b : nat} (p : path a b) : Prop :=
   match p with 
   | path_refl _ _ _ => True
   | path_prepend _ _ a' p' _ =>
-      tree_edges a a' /\ path_is_in_tree a' b p'
+      tree_edges a a' /\ path_is_in_tree p'
   end.
 
 (* there exists a possibly empty path from A to B in the DFS tree *)
-Notation "A -*> B" := (exists p : path A B, path_is_in_tree A B p) (at level 70).
+Notation "A -*> B" := (exists p : path A B, path_is_in_tree p) (at level 70).
 
 (* there exists a nonempty path from A to B in the DFS tree *)
 Notation "A -+> B" := ((A -*> B) /\ (A <> B)) (at level 70).
@@ -80,8 +80,8 @@ Proof. Admitted.
 (* If a path consists only of tree edges, then any (right-)subpath also
  * consists only of tree edges. *)
 Lemma path_subpath_in_tree_right :
-  forall a a' b : nat, forall p : path a b, path_contains a b a' p ->
-    path_is_in_tree a b p -> exists p' : path a' b, path_is_in_tree a' b p'.
+  forall a a' b : nat, forall p : path a b, path_contains a' p ->
+    path_is_in_tree p -> exists p' : path a' b, path_is_in_tree p'.
 Proof.
   intros.
   induction p as [a b | a b a'' p''].
@@ -114,7 +114,7 @@ Definition flow_graph_is_valid (fg : flow_graph) : Prop :=
   =>
      (* Each node is reachable from the root *)
      (forall n : nat, node_in_fg n ->
-        exists p : path 0 n, path_is_in_tree 0 n p)
+        exists p : path 0 n, path_is_in_tree p)
      /\
      (* Each node except the root has a tree-parent. *)
      (forall n : nat, node_in_fg n -> exists par : nat, par --> n)
@@ -181,7 +181,7 @@ Inductive is_sdom_of : nat -> nat -> Prop :=
  * every path from the root to B must go through A, and A<>B. *)
 Inductive dom : nat -> nat -> Prop :=
   | is_dom (n m : nat) : n <> m ->
-      (forall p : path 0 m, path_contains 0 m n p) -> dom n m.
+      (forall p : path 0 m, path_contains n p) -> dom n m.
 
 (* is_idom_of A B <=> A is the immediate dominator of B, i.e.,
  * A dominates B and every other dominator of B dominates A. *)
@@ -202,7 +202,7 @@ Proof. Admitted.
  * v and w in the DFS tree. *)
 Theorem LT_Lemma1 : 
   forall v w : nat, v <:= w -> forall p : path v w,
-    exists m : nat, path_contains v w m p /\ m -*> v /\ m -*> w.
+    exists m : nat, path_contains m p /\ m -*> v /\ m -*> w.
 Proof. Admitted.
 
 (* Lengauer, Tarjan:
@@ -217,14 +217,13 @@ Proof.
    * There exists at least one such path that only uses tree edges,
    * as each node is reachable from the root using only tree edges.
    * Therefore, this path must contain a subpath from idomw to w. *)
-  assert (exists p : path 0 w, path_is_in_tree 0 w p) as exists_path_0_w.
+  assert (exists p : path 0 w, path_is_in_tree p) as [path_0_w tree_path].
   { apply FG_valid.
     trivial. }
-  destruct exists_path_0_w as [path_0_w tree_path].
-  assert (path_contains 0 w idomw path_0_w) as idomw_in_path_0_w.
+  assert (path_contains idomw path_0_w) as idomw_in_path_0_w.
   { repeat (destruct H as [idomw w]).
     trivial. }
-  assert (exists p' : path idomw w, path_is_in_tree idomw w p').
+  assert (exists p' : path idomw w, path_is_in_tree p').
   { apply (path_subpath_in_tree_right 0 idomw w path_0_w).
     apply idomw_in_path_0_w.
     assumption. }
@@ -255,8 +254,8 @@ Proof.
   destruct H as [sdomw w].
   destruct H.
   destruct H.
-
-Qed.
+  (**)
+Admitted.
 
 (* Lengauer, Tarjan:
  * For any vertex w <> r, idom(w) -*> sdom(w).
