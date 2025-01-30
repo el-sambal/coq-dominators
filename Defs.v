@@ -86,24 +86,20 @@ Proof.
   intros.
   induction p as [a b | a b a'' p''].
   { (* Base case: p is path_refl. We use that a = a' = b. *)
-    assert (b = a'). { destruct H. trivial. } 
+    assert (b = a'). { destruct H. auto. } 
     assert (e' := e).
-    rewrite H1 in e'.
-    rewrite <- e'.
-    exists (path_refl a b e).
-    trivial.
+    rewrite H1 in e'. rewrite <- e'.
+    exists (path_refl a b e). auto.
   }
   { (* Inductive case: p is path_prepend. *)
     destruct H.
     { (* Case 1: a = a' (the paths a-to-b and a'-to-b are equal). *)
       rewrite <- H.
-      exists (path_prepend a b a'' p'' o).
-      trivial.
+      exists (path_prepend a b a'' p'' o). auto.
     }
     { (* Case 2: path_contains a'' b a' p''
        * (a' is in remainder of path). *)
-      destruct H0.
-      apply IHp''; trivial.
+      destruct H0. apply IHp''; auto.
     }
   }
 Qed.
@@ -116,8 +112,8 @@ Definition flow_graph_is_valid (fg : flow_graph) : Prop :=
      (forall n : nat, node_in_fg n ->
         exists p : path 0 n, path_is_in_tree p)
      /\
-     (* Each node except the root has a tree-parent. *)
-     (forall n : nat, node_in_fg n -> exists par : nat, par --> n)
+     (* Each node except the root has a tree-parent, which is a different node and has a lower starting time. *)
+     (forall n : nat, node_in_fg n -> exists par : nat, par --> n /\ par <> n /\ par <: n)
      (* NOTE: the rest is commented out because I haven't yet used them
       * in proofs. This way, we don't assume unnecessary stuff. *)
      (*
@@ -161,6 +157,11 @@ Definition flow_graph_is_valid (fg : flow_graph) : Prop :=
   end.
 Axiom FG_valid: flow_graph_is_valid FG.
 
+Lemma ancestor_lower_start_time : forall n m : nat , n -*> m -> n <:= m.
+  (* Proof is trivial; by induction *)
+Proof. Admitted.
+
+(*
 (* sdom_candidate A B is a necessary condition for A = sdom(B) *)
 Inductive sdom_candidate : nat -> nat -> Prop :=
   | sdc_root : sdom_candidate 0 0 (* sdom(root) := root *)
@@ -169,13 +170,17 @@ Inductive sdom_candidate : nat -> nat -> Prop :=
   | sdc_trans (n m k : nat) :
       n --> m /\ m >: k /\ sdom_candidate m k ->
         sdom_candidate n k.
+*)
 
-(* is_sdom_of A B <=> A is the semidominator of B,
- * or A and B are both the root node. *)
-Inductive is_sdom_of : nat -> nat -> Prop :=
-  | is_sdom (n m : nat) : (sdom_candidate n m /\
-      forall c, sdom_candidate c m -> n <:= c) ->
-        is_sdom_of n m.
+(* sdom_candidate A B <=> A <> B and there exists a path from A to B
+ * and for all nodes x on the path, if x <> A and x <> B then x >: B. *)
+Definition sdom_candidate (n m : nat) : Prop :=
+  n <> m /\ exists p : path n m, forall x : nat, path_contains x p -> x <> n -> x <> m -> x >: m.
+
+(* is_sdom_of A B <=> A is the (start-time)-minimum node 
+ * of all sdom_candidates of B *)
+Definition is_sdom_of (n m : nat) : Prop :=
+  (sdom_candidate n m /\ forall c, sdom_candidate c m -> n <:= c).
 
 (* dom A B <=> A dominates B, i.e.,
  * every path from the root to B must go through A, and A<>B. *)
@@ -218,20 +223,16 @@ Proof.
    * as each node is reachable from the root using only tree edges.
    * Therefore, this path must contain a subpath from idomw to w. *)
   assert (exists p : path 0 w, path_is_in_tree p) as [path_0_w tree_path].
-  { apply FG_valid.
-    trivial. }
+  { apply FG_valid. auto. }
   assert (path_contains idomw path_0_w) as idomw_in_path_0_w.
-  { repeat (destruct H as [idomw w]).
-    trivial. }
+  { repeat (destruct H as [idomw w]). auto. }
   assert (exists p' : path idomw w, path_is_in_tree p').
   { apply (path_subpath_in_tree_right 0 idomw w path_0_w).
     apply idomw_in_path_0_w.
     assumption. }
   split.
-  { trivial. }
-  { destruct H.
-    destruct H.
-    trivial. }
+  { auto. }
+  { destruct H. destruct H. auto. }
 Qed.
 
 (* Lengauer, Tarjan:
@@ -241,21 +242,81 @@ Theorem LT_Lemma3 :
   forall w sdomw : nat, is_sdom_of sdomw w ->
    (node_in_fg w /\ w <> 0) -> sdomw -+> w.
 Proof.
-  intros.
-  destruct H0.
+  intros. destruct H0.
   (* Part 1: let parw be the tree-parent of w. *)
   destruct FG_valid as [_ has_parent].
-  assert (exists par : nat, par --> w) as has_parent'.
-  { apply (has_parent w).
-    trivial. }
-  clear has_parent.
+  assert (exists par : nat, par --> w /\ par <> w /\ par <: w)
+    as has_parent' by (apply (has_parent w); auto).
   destruct has_parent' as [parw].
-  (* Part 2: Since parw --> w, sdomw <:= parw <: w, so sdomw <: w. Furthermore, there exists a path from sdomw to w of which all intermediate nodes are >: w. *)
-  destruct H as [sdomw w].
-  destruct H.
-  destruct H.
-  (**)
-Admitted.
+  (* Part 2: Since parw --> w, sdomw <:= parw <: w, so sdomw <: w.
+   * Furthermore, there exists a path [path_sdomw_w] from sdomw to w
+   * of which all intermediate nodes are >: w. *)
+  assert (exists path_sdomw_w : path sdomw w, forall x : nat,
+    path_contains x path_sdomw_w -> x <> sdomw -> x <> w -> x >: w)
+      as ex_path_sdomw_w.
+  { destruct H. destruct H. auto. }
+  destruct ex_path_sdomw_w as [path_sdomw_w].
+  assert (sdomw <: w).
+  {
+    apply (Nat.le_lt_trans
+      (start_time sdomw) (start_time parw) (start_time w)).
+    { 
+      destruct H. apply H4. split.
+      { destruct H2. destruct H5. auto. }
+      {
+        assert (w=w) by reflexivity.
+        destruct H2.
+        assert (parw ==> w) by (left; auto).
+        exists (path_prepend parw w w (path_refl w w H5) H7).
+        simpl. intros.  destruct H8.
+        {
+          unfold not in H9.
+          exfalso. apply H9.
+          rewrite H8. reflexivity.
+        }
+        {
+          unfold not in H10.
+          exfalso. apply H10.
+          rewrite H8. reflexivity.
+        }
+      }
+    }
+    {
+      destruct H2. destruct H4. auto.
+    }
+  }
+  (* Part 3: by Lemma 1, the path from sdomw to w must contain a common ancestor [anc] of sdomw and w. *)
+  assert (exists m : nat, path_contains m path_sdomw_w /\ m -*> sdomw /\ m -*> w) as ex_anc.
+  {
+    apply (LT_Lemma1 sdomw w).
+    apply Nat.lt_le_incl. auto.
+  }
+  destruct ex_anc as [anc anc_comm_anc].
+  destruct anc_comm_anc as [path_cts_anc [anc_to_sdomw anc_to_w]].
+  (* Part 4: prove that [sdomw = anc], from which the final goal follows.
+   * How we do it: we use the path [path_sdomw_w], of which it is known that all strictly intermediate nodes (i.e. not equal to sdomw or w) are >: w. As [anc] is an ancestor of [w], by tree properties, we have anc <:= w. Thus, anc cannot be equal to any of the intermediate nodes. Thus, anc must be either equal to sdomw or to w. anc can also not be equal to w because it is known that anc <:= sdomw <: w. Hence, the only possibility left is anc = sdomw. *)
+  assert (sdomw = anc).
+  {
+    destruct path_sdomw_w.
+    { destruct path_cts_anc. auto. }
+    {
+      destruct path_cts_anc.
+      { auto. }
+      {
+
+      }
+    }
+  }
+  split.
+  { rewrite H5. auto. }
+  {
+    red.
+    intros.
+    apply (f_equal start_time) in H6.
+    apply (Nat.lt_neq) in H4.
+    auto.
+  }
+Qed.
 
 (* Lengauer, Tarjan:
  * For any vertex w <> r, idom(w) -*> sdom(w).
