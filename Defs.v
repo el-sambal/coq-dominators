@@ -240,25 +240,41 @@ Proof.
    * There exists at least one such path that only uses tree edges,
    * as each node is reachable from the root using only tree edges.
    * Therefore, this path must contain a subpath from idomw to w. *)
-  assert (exists p : path 0 w, path_is_in_tree p) as [path_0_w tree_path].
-  { apply FG_valid. auto. }
-  assert (path_contains idomw path_0_w) as idomw_in_path_0_w.
-  { repeat (destruct H as [idomw w]). auto. }
-  assert (exists p' : path idomw w, path_is_in_tree p').
-  { apply (path_subpath_in_tree_right 0 idomw w path_0_w).
+  assert (exists p : path 0 w, path_is_in_tree p) as [path_0_w tree_path]
+    by (apply FG_valid; auto).
+  assert (path_contains idomw path_0_w) as idomw_in_path_0_w
+    by ( repeat (destruct H as [idomw w]); auto ).
+  assert (exists p' : path idomw w, path_is_in_tree p'). {
+    apply (path_subpath_in_tree_right 0 idomw w path_0_w).
     apply idomw_in_path_0_w.
-    assumption. }
+    assumption.
+  }
   split.
-  { auto. }
-  { destruct H. destruct H. auto. }
+  - auto.
+  - destruct H. destruct H. auto.
 Qed.
 
 Lemma LT_Lemma3_Helper :
   forall n m s : nat, forall p : path n m,
     is_sdom_path_helper p -> s <: m -> ~ path_contains s p.
 Proof.
-  (* XXX ! TODO ! XXX *)
-Admitted.
+  intros. red. intros.
+  induction p.
+  - simpl in H1. apply (f_equal start_time) in H1.
+    apply (Nat.lt_neq) in H0.
+    symmetry in H1. contradiction.
+  -
+    simpl in H1. simpl in H. destruct H. apply IHp.
+    + auto.
+    + auto.
+    + destruct H1.
+      * rewrite <- H1 in H0.
+        assert (a <:= b) by
+          (apply (Nat.lt_le_incl (start_time a) (start_time b)); auto).
+        assert (~ a >: b) by (apply (Nat.le_ngt (start_time a) (start_time b)); auto).
+        contradiction.
+      * auto.
+Qed.
 
 (* Lengauer, Tarjan:
  * For any vertex w <> r, sdom(w) -+> w.
