@@ -297,10 +297,38 @@ Proof.
    * How we do it: we use the path [path_sdomw_w], of which it is known that all strictly intermediate nodes are >: w. As [anc] is an ancestor of [w], by tree properties, we have anc <:= w. Thus, anc cannot be equal to any of the intermediate nodes. Thus, anc must be either equal to sdomw or to w. anc can also not be equal to w because it is known that anc <:= sdomw <: w. Hence, the only possibility left is anc = sdomw. *)
   assert (sdomw = anc).
   {
-    destruct path_sdomw_w.
+    destruct path_sdomw_w as [ | sdomw' path_sdomw'_w o].
     { destruct path_cts_anc. auto. }
     {
-      (* Reduced proof to this point *)
+      destruct path_cts_anc as [ | anc_in_subpath].
+      { auto. }
+      {
+        (* In this case we have a contradiction, and we prove it
+         * by induction on the subpath from sdomw' to w! *)
+        exfalso.
+        clear path_sdom_path o.
+        induction path_sdomw'_w as [sdomw' w | a b a' path_a'_b IH a_to_a'].
+        { (* Base case: anc <> w as anc <:= sdomw <: w; contradiction. *)
+          assert (anc <: w).
+          {
+            apply (Nat.le_lt_trans
+              (start_time anc) (start_time sdomw) (start_time w)).
+            { apply (ancestor_lower_start_time anc sdomw). auto. }
+            { auto. }
+          }
+          destruct anc_in_subpath.
+          assert (~ w <: w) by apply (Nat.lt_irrefl (start_time w)).
+          auto.
+        }
+        { (* Inductive step: *)
+          apply IH.
+          auto. auto. auto. auto. auto. auto. auto. auto. (* will fix later *)
+          {
+            admit.
+          }
+          auto.
+        }
+      }
     }
 
 
