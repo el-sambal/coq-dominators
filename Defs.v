@@ -176,13 +176,28 @@ Inductive sdom_candidate : nat -> nat -> Prop :=
 
 (* sdom_candidate A B <=> A <> B and there exists a path from A to B
  * and for all nodes x on the path, if x <> A and x <> B then x >: B. *)
-Definition sdom_candidate (n m : nat) : Prop :=
+Definition sdom_candidate_OLD (n m : nat) : Prop :=
   n <> m /\ exists p : path n m, forall x : nat, path_contains x p -> x <> n -> x <> m -> x >: m.
+
+Fixpoint is_sdom_path_helper {n m : nat} (p : path n m) : Prop :=
+  match p with
+  | path_refl _ _ _ => True
+  | path_prepend _ _ n' p' _ => n >: m /\ is_sdom_path_helper p'
+  end.
+
+Definition is_sdom_path {n m : nat} (p : path n m) : Prop :=
+  match p with
+  | path_refl _ _ _ => True
+  | path_prepend _ _ n' p' _ => is_sdom_path_helper p'
+  end.
+
+Definition sdom_candidate (n m : nat) : Prop :=
+  exists p : path n m, is_sdom_path p.
 
 (* is_sdom_of A B <=> A is the (start-time)-minimum node 
  * of all sdom_candidates of B *)
 Definition is_sdom_of (n m : nat) : Prop :=
-  (sdom_candidate n m /\ forall c, sdom_candidate c m -> n <:= c).
+  m <> 0 /\ (sdom_candidate n m /\ forall c, sdom_candidate c m -> n <:= c).
 
 (* dom A B <=> A dominates B, i.e.,
  * every path from the root to B must go through A, and A<>B. *)
@@ -250,42 +265,25 @@ Proof.
   assert (exists par : nat, par --> w /\ par <> w /\ par <: w)
     as has_parent' by (apply (has_parent w); auto).
   destruct has_parent' as [parw].
+  destruct H2 as [parw_to_w [parw_neq_w parw_lt_w]].
   (* Part 2: Since parw --> w, sdomw <:= parw <: w, so sdomw <: w.
    * Furthermore, there exists a path [path_sdomw_w] from sdomw to w
    * of which all intermediate nodes are >: w. *)
-  assert (exists path_sdomw_w : path sdomw w, forall x : nat,
-    path_contains x path_sdomw_w -> x <> sdomw -> x <> w -> x >: w)
-      as ex_path_sdomw_w.
-  { destruct H. destruct H. auto. }
-  destruct ex_path_sdomw_w as [path_sdomw_w path_sdom_path].
+  destruct H.
+  destruct H2.
+  destruct H2 as [path_sdomw_w path_sdom_path].
   assert (sdomw <: w).
   {
     apply (Nat.le_lt_trans
       (start_time sdomw) (start_time parw) (start_time w)).
     { 
-      destruct H. apply H3. split.
-      { destruct H2. destruct H4. auto. }
-      {
-        assert (w=w) by reflexivity.
-        destruct H2.
-        assert (parw ==> w) by (left; auto).
-        exists (path_prepend parw w w (path_refl w w H4) H6).
-        simpl. intros.  destruct H7.
-        {
-          unfold not in H8.
-          exfalso. apply H8.
-          rewrite H7. reflexivity.
-        }
-        {
-          unfold not in H9.
-          exfalso. apply H9.
-          rewrite H7. reflexivity.
-        }
-      }
+      apply H3.
+      assert (e1 : w=w) by reflexivity.
+      assert (e2 : parw ==> w) by (left; auto).
+      exists (path_prepend parw w w (path_refl w w e1) e2).
+      simpl. auto.
     }
-    {
-      destruct H2. destruct H3. auto.
-    }
+    { auto. }
   }
   (* Part 3: by Lemma 1, the path from sdomw to w must contain a common ancestor [anc] of sdomw and w. *)
   assert (exists m : nat, path_contains m path_sdomw_w /\ m -*> sdomw /\ m -*> w) as ex_anc.
@@ -296,10 +294,18 @@ Proof.
   destruct ex_anc as [anc anc_comm_anc].
   destruct anc_comm_anc as [path_cts_anc [anc_to_sdomw anc_to_w]].
   (* Part 4: prove that [sdomw = anc], from which the final goal follows.
-   * How we do it: we use the path [path_sdomw_w], of which it is known that all strictly intermediate nodes (i.e. not equal to sdomw or w) are >: w. As [anc] is an ancestor of [w], by tree properties, we have anc <:= w. Thus, anc cannot be equal to any of the intermediate nodes. Thus, anc must be either equal to sdomw or to w. anc can also not be equal to w because it is known that anc <:= sdomw <: w. Hence, the only possibility left is anc = sdomw. *)
+   * How we do it: we use the path [path_sdomw_w], of which it is known that all strictly intermediate nodes are >: w. As [anc] is an ancestor of [w], by tree properties, we have anc <:= w. Thus, anc cannot be equal to any of the intermediate nodes. Thus, anc must be either equal to sdomw or to w. anc can also not be equal to w because it is known that anc <:= sdomw <: w. Hence, the only possibility left is anc = sdomw. *)
   assert (sdomw = anc).
   {
-    clear H H3 anc_to_sdomw. (* so they're not included in IH *)
+    destruct path_sdomw_w.
+    { destruct path_cts_anc. auto. }
+    {
+      (* Reduced proof to this point *)
+    }
+
+
+    (*
+    (* clear H H3 anc_to_sdomw. (* so they're not included in IH *) *)
     induction path_sdomw_w as [ | a b a' p' IH].
     { destruct path_cts_anc. auto. }
     {
@@ -346,6 +352,7 @@ Proof.
         admit. (* easy, by contradiction *)
       }
     }
+     *)
   }
   split.
   { rewrite H4. auto. }
@@ -353,7 +360,7 @@ Proof.
     red.
     intros.
     apply (f_equal start_time) in H5.
-    apply (Nat.lt_neq) in H3.
+    apply (Nat.lt_neq) in H2.
     auto.
   }
 Qed.
