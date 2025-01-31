@@ -155,7 +155,9 @@ Definition flow_graph_is_valid (fg : flow_graph) : Prop :=
           forall p : nat, tree_edges p n -> start_time p < start_time n)
      *)
   end.
-Axiom FG_valid: flow_graph_is_valid FG.
+Axiom FG_valid : flow_graph_is_valid FG.
+
+Axiom FG_valid_no_self_loops : forall n m : nat, n ==> m -> n <> m.
 
 Lemma ancestor_lower_start_time : forall n m : nat , n -*> m -> n <:= m.
   (* Proof is trivial; by induction *)
@@ -255,34 +257,34 @@ Proof.
     path_contains x path_sdomw_w -> x <> sdomw -> x <> w -> x >: w)
       as ex_path_sdomw_w.
   { destruct H. destruct H. auto. }
-  destruct ex_path_sdomw_w as [path_sdomw_w].
+  destruct ex_path_sdomw_w as [path_sdomw_w path_sdom_path].
   assert (sdomw <: w).
   {
     apply (Nat.le_lt_trans
       (start_time sdomw) (start_time parw) (start_time w)).
     { 
-      destruct H. apply H4. split.
-      { destruct H2. destruct H5. auto. }
+      destruct H. apply H3. split.
+      { destruct H2. destruct H4. auto. }
       {
         assert (w=w) by reflexivity.
         destruct H2.
         assert (parw ==> w) by (left; auto).
-        exists (path_prepend parw w w (path_refl w w H5) H7).
-        simpl. intros.  destruct H8.
+        exists (path_prepend parw w w (path_refl w w H4) H6).
+        simpl. intros.  destruct H7.
+        {
+          unfold not in H8.
+          exfalso. apply H8.
+          rewrite H7. reflexivity.
+        }
         {
           unfold not in H9.
           exfalso. apply H9.
-          rewrite H8. reflexivity.
-        }
-        {
-          unfold not in H10.
-          exfalso. apply H10.
-          rewrite H8. reflexivity.
+          rewrite H7. reflexivity.
         }
       }
     }
     {
-      destruct H2. destruct H4. auto.
+      destruct H2. destruct H3. auto.
     }
   }
   (* Part 3: by Lemma 1, the path from sdomw to w must contain a common ancestor [anc] of sdomw and w. *)
@@ -297,23 +299,61 @@ Proof.
    * How we do it: we use the path [path_sdomw_w], of which it is known that all strictly intermediate nodes (i.e. not equal to sdomw or w) are >: w. As [anc] is an ancestor of [w], by tree properties, we have anc <:= w. Thus, anc cannot be equal to any of the intermediate nodes. Thus, anc must be either equal to sdomw or to w. anc can also not be equal to w because it is known that anc <:= sdomw <: w. Hence, the only possibility left is anc = sdomw. *)
   assert (sdomw = anc).
   {
-    destruct path_sdomw_w.
+    clear H H3 anc_to_sdomw. (* so they're not included in IH *)
+    induction path_sdomw_w as [ | a b a' p' IH].
     { destruct path_cts_anc. auto. }
     {
-      destruct path_cts_anc.
+      destruct path_cts_anc as [ | p'_cts_anc].
       { auto. }
       {
-
+        (* Now we have a path [a ==> a' =*> b] with a subpath [p' : path a' b]. [path_sdom_path] states that all intermediate nodes of the whole path (so including a') are >: b. But [p'_cts_anc] states that [anc] is a node of p'. As a <: b, this is a contradiction. We use the induction hypothesis to prove that a' = anc, which eventually gives a contradiction with path_sdom_path. *)
+        assert (a' = anc) as a'_anc.
+        {
+          apply IH.
+          { auto. }
+          { auto. }
+          { auto. }
+          {
+            intros.
+            apply path_sdom_path.
+            { simpl. auto. }
+            {
+              admit. (* x <> a : XXX*)
+            }
+            { auto. }
+          }
+          { auto. }
+          { auto. }
+        }
+        assert (a' >: b).
+        {
+          apply path_sdom_path.
+          {
+            simpl.
+            right.
+            rewrite <- a'_anc in p'_cts_anc.
+            auto.
+          }
+          {
+            symmetry.
+            apply FG_valid_no_self_loops.
+            auto.
+          }
+          {
+            admit. (* XXX *)
+          }
+        }
+        admit. (* easy, by contradiction *)
       }
     }
   }
   split.
-  { rewrite H5. auto. }
+  { rewrite H4. auto. }
   {
     red.
     intros.
-    apply (f_equal start_time) in H6.
-    apply (Nat.lt_neq) in H4.
+    apply (f_equal start_time) in H5.
+    apply (Nat.lt_neq) in H3.
     auto.
   }
 Qed.
