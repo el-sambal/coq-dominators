@@ -227,6 +227,7 @@ Theorem LT_Lemma1 :
     exists m : nat, path_contains m p /\ m -*> v /\ m -*> w.
 Proof. Admitted.
 
+
 (* Lengauer, Tarjan:
  * For any vertex w <> r, idom(w) -+> w.
  *)
@@ -252,6 +253,13 @@ Proof.
   { destruct H. destruct H. auto. }
 Qed.
 
+Lemma LT_Lemma3_Helper :
+  forall n m s : nat, forall p : path n m,
+    is_sdom_path_helper p -> s <: m -> ~ path_contains s p.
+Proof.
+  (* XXX ! TODO ! XXX *)
+Admitted.
+
 (* Lengauer, Tarjan:
  * For any vertex w <> r, sdom(w) -+> w.
  *)
@@ -276,121 +284,44 @@ Proof.
   {
     apply (Nat.le_lt_trans
       (start_time sdomw) (start_time parw) (start_time w)).
-    { 
-      apply H3.
-      assert (e1 : w=w) by reflexivity.
+    - apply H3. assert (e1 : w=w) by reflexivity.
       assert (e2 : parw ==> w) by (left; auto).
-      exists (path_prepend parw w w (path_refl w w e1) e2).
-      simpl. auto.
-    }
-    { auto. }
+      exists (path_prepend parw w w (path_refl w w e1) e2). simpl. auto.
+    - auto. 
   }
   (* Part 3: by Lemma 1, the path from sdomw to w must contain a common ancestor [anc] of sdomw and w. *)
-  assert (exists m : nat, path_contains m path_sdomw_w /\ m -*> sdomw /\ m -*> w) as ex_anc.
-  {
+  assert (exists m : nat, path_contains m path_sdomw_w /\
+      m -*> sdomw /\ m -*> w) as ex_anc. {
     apply (LT_Lemma1 sdomw w).
     apply Nat.lt_le_incl. auto.
   }
   destruct ex_anc as [anc anc_comm_anc].
   destruct anc_comm_anc as [path_cts_anc [anc_to_sdomw anc_to_w]].
   (* Part 4: prove that [sdomw = anc], from which the final goal follows.
-   * How we do it: we use the path [path_sdomw_w], of which it is known that all strictly intermediate nodes are >: w. As [anc] is an ancestor of [w], by tree properties, we have anc <:= w. Thus, anc cannot be equal to any of the intermediate nodes. Thus, anc must be either equal to sdomw or to w. anc can also not be equal to w because it is known that anc <:= sdomw <: w. Hence, the only possibility left is anc = sdomw. *)
-  assert (sdomw = anc).
-  {
+   * How we do it: we use the path [path_sdomw_w], of which it is known that all strictly intermediate nodes are >: w. As [anc] is an ancestor of [w], by tree properties, we have anc <:= w. Thus, anc cannot be equal to any of the intermediate nodes. Thus, anc must be either equal to sdomw or to w. anc can also not be equal to w because it is known that anc <:= sdomw <: w. Hence, the only possibility left is anc = sdomw. TODO: adapt this explanation since we use helper lemma *)
+  assert (sdomw = anc). {
     destruct path_sdomw_w as [ | sdomw' path_sdomw'_w o].
-    { destruct path_cts_anc. auto. }
-    {
-      destruct path_cts_anc as [ | anc_in_subpath].
-      { auto. }
-      {
-        (* In this case we have a contradiction, and we prove it
-         * by induction on the subpath from sdomw' to w! *)
-        exfalso.
-        clear path_sdom_path o.
-        induction path_sdomw'_w as [sdomw' w | a b a' path_a'_b IH a_to_a'].
-        { (* Base case: anc <> w as anc <:= sdomw <: w; contradiction. *)
-          assert (anc <: w).
-          {
-            apply (Nat.le_lt_trans
-              (start_time anc) (start_time sdomw) (start_time w)).
-            { apply (ancestor_lower_start_time anc sdomw). auto. }
-            { auto. }
-          }
-          destruct anc_in_subpath.
-          assert (~ w <: w) by apply (Nat.lt_irrefl (start_time w)).
-          auto.
-        }
-        { (* Inductive step: *)
-          apply IH.
-          auto. auto. auto. auto. auto. auto. auto. auto. (* will fix later *)
-          {
-            admit.
-          }
-          auto.
-        }
-      }
-    }
-
-
-    (*
-    (* clear H H3 anc_to_sdomw. (* so they're not included in IH *) *)
-    induction path_sdomw_w as [ | a b a' p' IH].
-    { destruct path_cts_anc. auto. }
-    {
-      destruct path_cts_anc as [ | p'_cts_anc].
-      { auto. }
-      {
-        (* Now we have a path [a ==> a' =*> b] with a subpath [p' : path a' b]. [path_sdom_path] states that all intermediate nodes of the whole path (so including a') are >: b. But [p'_cts_anc] states that [anc] is a node of p'. As a <: b, this is a contradiction. We use the induction hypothesis to prove that a' = anc, which eventually gives a contradiction with path_sdom_path. *)
-        assert (a' = anc) as a'_anc.
-        {
-          apply IH.
-          { auto. }
-          { auto. }
-          { auto. }
-          {
-            intros.
-            apply path_sdom_path.
-            { simpl. auto. }
-            {
-              admit. (* x <> a : XXX*)
+    - destruct path_cts_anc. auto.
+    - simpl in path_cts_anc.
+      destruct path_cts_anc.
+      + auto.
+      + assert (~ path_contains anc path_sdomw'_w). {
+          apply LT_Lemma3_Helper.
+          - auto. 
+          - assert (anc <: w). {
+              apply (Nat.le_lt_trans
+                (start_time anc) (start_time sdomw) (start_time w)).
+              * apply (ancestor_lower_start_time anc sdomw). auto.
+              * auto. 
             }
-            { auto. }
-          }
-          { auto. }
-          { auto. }
-        }
-        assert (a' >: b).
-        {
-          apply path_sdom_path.
-          {
-            simpl.
-            right.
-            rewrite <- a'_anc in p'_cts_anc.
             auto.
-          }
-          {
-            symmetry.
-            apply FG_valid_no_self_loops.
-            auto.
-          }
-          {
-            admit. (* XXX *)
-          }
         }
-        admit. (* easy, by contradiction *)
-      }
-    }
-     *)
+        contradiction.
   }
   split.
-  { rewrite H4. auto. }
-  {
-    red.
-    intros.
-    apply (f_equal start_time) in H5.
-    apply (Nat.lt_neq) in H2.
-    auto.
-  }
+  - rewrite H4. auto.
+  - red. intros. apply (f_equal start_time) in H5.
+    apply (Nat.lt_neq) in H2. auto.
 Qed.
 
 (* Lengauer, Tarjan:
