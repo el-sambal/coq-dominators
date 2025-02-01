@@ -283,27 +283,21 @@ Proof.
     apply (Nat.lt_neq) in H3. auto.
 Qed.
 
-Lemma path_types_eq : forall n n' m m' : nat, n = n' -> m = m' -> path n m = path n' m'.
-Proof.
+
+(* Worse than Rust's type checker ;) *)
+Definition path_cast {n n' m m' : nat} (e1: n = n') (e2 : m = m') (p : path n m) : path n' m'.
+  rewrite e1 in p.
+  rewrite e2 in p.
   auto.
-Qed.
+Defined.
 
-Definition simple_cast {T1 T2 : Set} (H : T1 = T2) (x : T1) : T2. rewrite -> H in x. assumption. Defined.
-
-
-Fixpoint path_reverse_helper {n n' m : nat} (acc : path n' n) (p : path n' m) : path m n :=
-  match p with
-  | path_refl _ _ e => simple_cast (path_types_eq n' m n n e eq_refl) (acc)
-  | path_prepend _ _ n'' p' _ => path_reverse_helper (path_prepend n'' n n' acc) p'
-  end.
-
-Fixpoint path_reverse {n m : nat} (p : path n m) : path m n :=
-  match p with
-  | path_refl _ _ e => path_refl _ _ eq_sym.
-  | path_prepend _ _ n' p' _ => path_prepend 
-  end.
+Search "eq_".
 
 Fixpoint path_composition {n n' m : nat} (p1 : path n n') (p2 : path n' m) : path n m :=
+  match p1 with
+  | path_refl _ _ e => path_cast (eq_sym e) eq_refl p2
+  | path_prepend _ _ n'' p1' e => path_prepend n m n'' (path_composition p1' p2) e
+  end.
 
 
 (* Lemma 3 of the paper of Lengauer and Tarjan states the following:
