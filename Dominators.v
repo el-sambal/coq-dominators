@@ -195,10 +195,25 @@ Proof.
   - destruct H. destruct H. auto.
 Qed.
 
+Lemma sdom_path_helper_property :
+  forall n m s : nat, forall p : path n m,
+    is_sdom_path_helper p -> path_contains s p -> s >:= m.
+Proof.
+  intros.
+  induction p.
+  - simpl in H0. apply Nat.eq_le_incl.
+    apply (f_equal start_time). auto.
+  - simpl in H. destruct H. simpl in H0.
+    destruct H0.
+    + rewrite <- H0. apply Nat.lt_le_incl. auto.
+    + apply IHp; auto.
+Qed.
+
 Lemma LT_Lemma3_Helper :
   forall n m s : nat, forall p : path n m,
     is_sdom_path_helper p -> s <: m -> ~ path_contains s p.
 Proof.
+  (* TODO: rewrite this proof using [sdom_path_helper_property] *)
   intros. red. intros.
   induction p.
   - simpl in H1. apply (f_equal start_time) in H1.
@@ -216,6 +231,7 @@ Proof.
         contradiction.
       * auto.
 Qed.
+
 
 (* Lemma 3 of the paper of Lengauer and Tarjan states the following:
  *
@@ -288,7 +304,7 @@ Qed.
 Definition path_cast {n n' m m' : nat} (e1: n = n') (e2 : m = m') (p : path n m) : path n' m'.
   rewrite e1 in p.
   rewrite e2 in p.
-  auto.
+  auto. Show Proof.
 Defined.
 
 Search "eq_".
@@ -299,20 +315,32 @@ Fixpoint path_composition {n n' m : nat} (p1 : path n n') (p2 : path n' m) : pat
   | path_prepend _ _ n'' p1' e => path_prepend n m n'' (path_composition p1' p2) e
   end.
 
+Lemma path_comp_preserves_properties :
+  forall n n' m : nat, forall p1 : path n n', forall p2 : path n' m,
+    forall P : nat -> Prop,
+      (forall x : nat, path_contains x p1 -> P x) ->
+      (forall x : nat, path_contains x p2 -> P x) ->
+      (forall x : nat, path_contains x (path_composition p1 p2) -> P x).
+Proof.
 
-(* Lemma 3 of the paper of Lengauer and Tarjan states the following:
+Admitted.
+
+
+
+(* Lemma 4 of the paper of Lengauer and Tarjan states the following:
  *
  *  "For any vertex w <> r, idom(w) -*> sdom(w)."
  *)
 Theorem LT_Lemma4 :
-  forall w idomw sdomw : nat, is_idom_of idomw w -> is_sdom_of sdomw w
-    -> (node_in_fg w /\ w <> 0) -> idomw -*> sdomw.
+  forall w idomw sdomw : nat, node_in_fg w -> node_in_fg idomw ->
+    node_in_fg sdomw -> is_idom_of idomw w -> is_sdom_of sdomw w
+      -> (node_in_fg w /\ w <> 0) -> idomw -*> sdomw.
 Proof.
-  intros w idomw sdomw H1 H2 [H3 H4].
+  intros w idomw sdomw infg1 infg2 infg3 H1 H2 [H3 H4].
   assert (ex_p1 : exists p1: path 0 w, forall n : nat,
       path_contains n p1 -> n -*> sdomw \/ n <:= w). {
     specialize FG_valid__path_from_root with (n := w).
-    intros H'. apply H' in H3. clear H' H2 H4.
+    intros H'. apply H' in H3. clear H' H4.
     destruct H3 as [p Hp]. exists p. intros. right.
     apply ancestor_lower_start_time.
     apply (path_subpath_in_tree_right 0 n w p); auto.
@@ -320,7 +348,40 @@ Proof.
   destruct ex_p1 as [p1 Hp1].
   assert (ex_p2 : exists p2 : path 0 w, forall n : nat,
       path_contains n p2 -> n -*> sdomw \/ n >:= w). {
-    admit.
+    assert (ex_p_sd : 0 -*> sdomw) by (apply FG_valid__path_from_root; auto).
+    destruct ex_p_sd as [p2a].
+    assert (H2' := H2).
+    destruct H2' as [H2a [[p2b Hp2] H2c]].
+    exists (path_composition p2a p2b).
+    apply path_comp_preserves_properties.
+    {
+      intros.
+      Check path_subpath_in_tree_right.
+      left.
+      apply (path_subpath_in_tree_right 0 x sdomw p2a); auto.
+    }
+    {
+      intros.
+      destruct p2b.
+      {
+        assert (start_time sdomw <> start_time w). {
+          apply Nat.lt_neq.
+          apply strict_ancestor_lower_start_time.
+          apply LT_Lemma3; auto.
+        }
+        assert (e' := e).
+        apply (f_equal start_time) in e'.
+        contradiction.
+      }
+      {
+        simpl in Hp2.
+        simpl in H0.
+        Check sdom_path_helper_property.
+        destruct H0.
+        - left. exists (path_refl x sdomw (eq_sym H0)). simpl. auto.
+        - right. apply (sdom_path_helper_property a' w _ p2b); auto.
+      }
+    }
   }
   destruct ex_p2 as [p2 Hp2].
   (* Now we constructed two paths from [0] to [w].
@@ -355,6 +416,8 @@ Proof.
       }
       contradiction.
 Qed.
+
+Print Assumptions LT_Lemma4.
 
 (* Lengauer, Tarjan:
  * Let vertices v,w satisfy v -*> w. Then v -*> idom(w) or idom(w) -*> idom(v).
