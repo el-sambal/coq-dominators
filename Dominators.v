@@ -317,7 +317,11 @@ Proof.
   intros w idomw sdomw H1 H2 [H3 H4].
   assert (ex_p1 : exists p1: path 0 w, forall n : nat,
       path_contains n p1 -> n -*> sdomw \/ n <:= w). {
-    admit.
+    specialize FG_valid__path_from_root with (n := w).
+    intros H'. apply H' in H3. clear H' H2 H4.
+    destruct H3 as [p Hp]. exists p. intros. right.
+    apply ancestor_lower_start_time.
+    apply (path_subpath_in_tree_right 0 n w p); auto.
   }
   destruct ex_p1 as [p1 Hp1].
   assert (ex_p2 : exists p2 : path 0 w, forall n : nat,
