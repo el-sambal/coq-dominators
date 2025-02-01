@@ -283,17 +283,18 @@ Proof.
     apply (Nat.lt_neq) in H3. auto.
 Qed.
 
-Print Assumptions LT_Lemma3.
+Lemma path_types_eq : forall n n' m m' : nat, n = n' -> m = m' -> path n m = path n' m'.
+Proof.
+  auto.
+Qed.
 
-Search "sym" "eq".
+Definition simple_cast {T1 T2 : Set} (H : T1 = T2) (x : T1) : T2. rewrite -> H in x. assumption. Defined.
 
-(*)
-Definition path_type_convert : {}
 
 Fixpoint path_reverse_helper {n n' m : nat} (acc : path n' n) (p : path n' m) : path m n :=
   match p with
-  | path_refl _ _ e => acc
-  | path_prepend _ _ n' p' _ => path_prepend 
+  | path_refl _ _ e => simple_cast (path_types_eq n' m n n e eq_refl) (acc)
+  | path_prepend _ _ n'' p' _ => path_reverse_helper (path_prepend n'' n n' acc) p'
   end.
 
 Fixpoint path_reverse {n m : nat} (p : path n m) : path m n :=
@@ -303,7 +304,6 @@ Fixpoint path_reverse {n m : nat} (p : path n m) : path m n :=
   end.
 
 Fixpoint path_composition {n n' m : nat} (p1 : path n n') (p2 : path n' m) : path n m :=
-*)
 
 
 (* Lemma 3 of the paper of Lengauer and Tarjan states the following:
