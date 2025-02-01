@@ -167,7 +167,6 @@ Theorem LT_Theorem1_Part1 :
     (exists id : nat, forall id' : nat, id = id' <-> is_idom_of id' n).
 Proof. Admitted.
 
-
 (* Lemma 2 of the paper of Lengauer and Tarjan states the following:
  *
  *  "For any vertex [w <> r], [idom(w) -+> w]."
@@ -231,7 +230,6 @@ Proof.
         contradiction.
       * auto.
 Qed.
-
 
 (* Lemma 3 of the paper of Lengauer and Tarjan states the following:
  *
@@ -299,15 +297,15 @@ Proof.
     apply (Nat.lt_neq) in H3. auto.
 Qed.
 
+(* Worse than Rust's type checker ;)
 
-(* Worse than Rust's type checker ;) *)
+ * This definition is only used to define path composition.
+ **)
 Definition path_cast {n n' m m' : nat} (e1: n = n') (e2 : m = m') (p : path n m) : path n' m'.
   rewrite e1 in p.
   rewrite e2 in p.
   auto. Show Proof.
 Defined.
-
-Search "eq_".
 
 Fixpoint path_composition {n n' m : nat} (p1 : path n n') (p2 : path n' m) : path n m :=
   match p1 with
@@ -325,8 +323,6 @@ Proof.
 
 Admitted.
 
-
-
 (* Lemma 4 of the paper of Lengauer and Tarjan states the following:
  *
  *  "For any vertex w <> r, idom(w) -*> sdom(w)."
@@ -337,6 +333,7 @@ Theorem LT_Lemma4 :
       -> (node_in_fg w /\ w <> 0) -> idomw -*> sdomw.
 Proof.
   intros w idomw sdomw infg1 infg2 infg3 H1 H2 [H3 H4].
+  (* We construct the path [p1] as the DFS tree path from [0] to [w]. *)
   assert (ex_p1 : exists p1: path 0 w, forall n : nat,
       path_contains n p1 -> n -*> sdomw \/ n <:= w). {
     specialize FG_valid__path_from_root with (n := w).
@@ -346,25 +343,23 @@ Proof.
     apply (path_subpath_in_tree_right 0 n w p); auto.
   }
   destruct ex_p1 as [p1 Hp1].
+  (* We construct the path [p2] as the path that is the composition
+   * of the DFS tree path from [0] to [sdomw] and the path from
+   * [sdomw] to [w] for which all intermediate nodes are [>: w]
+   * (such a path exists by definition because [sdomw] is
+   * the semidomimator of [w]). *)
   assert (ex_p2 : exists p2 : path 0 w, forall n : nat,
       path_contains n p2 -> n -*> sdomw \/ n >:= w). {
     assert (ex_p_sd : 0 -*> sdomw) by (apply FG_valid__path_from_root; auto).
-    destruct ex_p_sd as [p2a].
-    assert (H2' := H2).
+    destruct ex_p_sd as [p2a]. assert (H2' := H2).
     destruct H2' as [H2a [[p2b Hp2] H2c]].
     exists (path_composition p2a p2b).
     apply path_comp_preserves_properties.
-    {
-      intros.
-      Check path_subpath_in_tree_right.
-      left.
+    - intros. left.
       apply (path_subpath_in_tree_right 0 x sdomw p2a); auto.
-    }
-    {
-      intros.
+    - intros.
       destruct p2b.
-      {
-        assert (start_time sdomw <> start_time w). {
+      + assert (start_time sdomw <> start_time w). {
           apply Nat.lt_neq.
           apply strict_ancestor_lower_start_time.
           apply LT_Lemma3; auto.
@@ -372,16 +367,10 @@ Proof.
         assert (e' := e).
         apply (f_equal start_time) in e'.
         contradiction.
-      }
-      {
-        simpl in Hp2.
-        simpl in H0.
-        Check sdom_path_helper_property.
+      + simpl in Hp2.
         destruct H0.
-        - left. exists (path_refl x sdomw (eq_sym H0)). simpl. auto.
-        - right. apply (sdom_path_helper_property a' w _ p2b); auto.
-      }
-    }
+        * left. exists (path_refl x sdomw (eq_sym H0)). simpl. auto.
+        * right. apply (sdom_path_helper_property a' w _ p2b); auto.
   }
   destruct ex_p2 as [p2 Hp2].
   (* Now we constructed two paths from [0] to [w].
@@ -392,8 +381,7 @@ Proof.
 
    * As [idomw] by definition is a vertex of all paths from [0] to [w],
    * we find that either [idomw -*> sdomw], in which the goal is proven, or
-   * [start_time idomw = start_time w], which is impossible by LT_Lemma2.
-   **)
+   * [start_time idomw = start_time w], which is impossible by LT_Lemma2. *)
   specialize Hp1 with (n := idomw).
   specialize Hp2 with (n := idomw).
   assert (H1' := H1).
@@ -417,8 +405,6 @@ Proof.
       contradiction.
 Qed.
 
-Print Assumptions LT_Lemma4.
-
 (* Lengauer, Tarjan:
  * Let vertices v,w satisfy v -*> w. Then v -*> idom(w) or idom(w) -*> idom(v).
  *)
@@ -427,7 +413,6 @@ Theorem LT_Lemma5 :
     is_idom_of idomv v -> (node_in_fg v /\ node_in_fg w /\ v -*> w) ->
       (v -*> idomw \/ idomw -*> idomv).
 Proof. Admitted.
-
 
 (* Lengauer, Tarjan:
  * The edges {(idom(w),w) | w in V\{r}} form a directed tree
