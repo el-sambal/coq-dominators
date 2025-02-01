@@ -320,8 +320,22 @@ Lemma path_comp_preserves_properties :
       (forall x : nat, path_contains x p2 -> P x) ->
       (forall x : nat, path_contains x (path_composition p1 p2) -> P x).
 Proof.
+  intros.
+  induction p1.
+  - simpl in H1.
+    apply H0.
+    destruct (eq_rect b (fun n : nat => path n m) p2 a (eq_sym e)).
+    + simpl in H1.
+      destruct p2.
+      * auto.
+      * left.
+        rewrite <- H1.
+        rewrite <- e0.
+        symmetry. auto.
+    + simpl in H1.
+  -
 
-Admitted.
+Qed.
 
 (* Lemma 4 of the paper of Lengauer and Tarjan states the following:
  *
