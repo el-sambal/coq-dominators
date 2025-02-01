@@ -105,20 +105,25 @@ Axiom LT_Lemma1 :
   forall v w : nat, v <:= w -> forall p : path v w,
     exists m : nat, path_contains m p /\ m -*> v /\ m -*> w.
 
-(* Simple helper lemma. *)
+(* Simple helper lemmas. *)
 Lemma ancestor_lower_start_time : forall n m : nat , n -*> m -> n <:= m.
 Proof.
-  intros.
-  destruct H as [p].
-  induction p.
-  - apply Nat.eq_le_incl.
-    apply (f_equal start_time). auto.
-  - simpl in H. 
-    destruct H.
-    apply Nat.lt_le_incl.
+  intros n m [p]. induction p.
+  - apply Nat.eq_le_incl. apply (f_equal start_time). auto.
+  - destruct H. apply Nat.lt_le_incl.
     apply (Nat.lt_le_trans (start_time a) (start_time a') (start_time b)).
     + apply FG_valid__par_earlier. auto.
     + apply IHp. auto.
+Qed.
+
+Lemma strict_ancestor_lower_start_time : forall n m : nat , n -+> m -> n <: m.
+Proof.
+  intros n m [[p Hp] e]. destruct p.
+  - contradiction.
+  - destruct Hp.
+    apply (Nat.lt_le_trans (start_time n) (start_time a') (start_time m)).
+    + apply FG_valid__par_earlier. auto.
+    + apply ancestor_lower_start_time. exists p. auto.
 Qed.
 
 Fixpoint is_sdom_path_helper {n m : nat} (p : path n m) : Prop :=
@@ -278,13 +283,80 @@ Proof.
     apply (Nat.lt_neq) in H3. auto.
 Qed.
 
-(* Lengauer, Tarjan:
- * For any vertex w <> r, idom(w) -*> sdom(w).
+Print Assumptions LT_Lemma3.
+
+Search "sym" "eq".
+
+(*)
+Definition path_type_convert : {}
+
+Fixpoint path_reverse_helper {n n' m : nat} (acc : path n' n) (p : path n' m) : path m n :=
+  match p with
+  | path_refl _ _ e => acc
+  | path_prepend _ _ n' p' _ => path_prepend 
+  end.
+
+Fixpoint path_reverse {n m : nat} (p : path n m) : path m n :=
+  match p with
+  | path_refl _ _ e => path_refl _ _ eq_sym.
+  | path_prepend _ _ n' p' _ => path_prepend 
+  end.
+
+Fixpoint path_composition {n n' m : nat} (p1 : path n n') (p2 : path n' m) : path n m :=
+*)
+
+
+(* Lemma 3 of the paper of Lengauer and Tarjan states the following:
+ *
+ *  "For any vertex w <> r, idom(w) -*> sdom(w)."
  *)
 Theorem LT_Lemma4 :
   forall w idomw sdomw : nat, is_idom_of idomw w -> is_sdom_of sdomw w
     -> (node_in_fg w /\ w <> 0) -> idomw -*> sdomw.
-Proof. Admitted.
+Proof.
+  intros w idomw sdomw H1 H2 [H3 H4].
+  assert (ex_p1 : exists p1: path 0 w, forall n : nat,
+      path_contains n p1 -> n -*> sdomw \/ n <:= w). {
+    admit.
+  }
+  destruct ex_p1 as [p1 Hp1].
+  assert (ex_p2 : exists p2 : path 0 w, forall n : nat,
+      path_contains n p2 -> n -*> sdomw \/ n >:= w). {
+    admit.
+  }
+  destruct ex_p2 as [p2 Hp2].
+  (* Now we constructed two paths from [0] to [w].
+   * The path [p1] has the property that all its vertices
+   * are either an ancestor of [sdomw] or are [<:= sdomw].
+   * The path [p2] has the property that all its vertices
+   * are either an ancestor of [sdomw] or are [>:= sdomw].
+
+   * As [idomw] by definition is a vertex of all paths from [0] to [w],
+   * we find that either [idomw -*> sdomw], in which the goal is proven, or
+   * [start_time idomw = start_time w], which is impossible by LT_Lemma2.
+   **)
+  specialize Hp1 with (n := idomw).
+  specialize Hp2 with (n := idomw).
+  assert (H1' := H1).
+  destruct H1 as [idomw w Hi _].
+  destruct Hi as [idomw w _ Hi].
+  assert (Hlhs : idomw -*> sdomw \/ idomw <:= w)
+    by (apply Hp1; specialize Hi with (p := p1); auto).
+  assert (Hrhs : idomw -*> sdomw \/ idomw >:= w)
+    by (apply Hp2; specialize Hi with (p := p2); auto).
+  destruct Hlhs.
+  - auto.
+  - destruct Hrhs.
+    + auto.
+    + assert (start_time idomw = start_time w)
+        by (apply (Nat.le_antisymm); auto).
+      assert (start_time idomw <> start_time w). {
+        apply Nat.lt_neq.
+        apply strict_ancestor_lower_start_time.
+        apply LT_Lemma2; auto.
+      }
+      contradiction.
+Qed.
 
 (* Lengauer, Tarjan:
  * Let vertices v,w satisfy v -*> w. Then v -*> idom(w) or idom(w) -*> idom(v).
