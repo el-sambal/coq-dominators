@@ -218,8 +218,7 @@ Proof.
   - simpl in H1. apply (f_equal start_time) in H1.
     apply (Nat.lt_neq) in H0.
     symmetry in H1. contradiction.
-  -
-    simpl in H1. simpl in H. destruct H. apply IHp.
+  - simpl in H1. simpl in H. destruct H. apply IHp.
     + auto.
     + auto.
     + destruct H1.
@@ -297,16 +296,25 @@ Proof.
     apply (Nat.lt_neq) in H3. auto.
 Qed.
 
-(* Worse than Rust's type checker ;)
-
- * This definition is only used to define path composition.
- **)
-Definition path_cast {n n' m m' : nat} (e1: n = n') (e2 : m = m') (p : path n m) : path n' m'.
+(* Casts a path of type [path n m] to the equivalent path of
+ * type [path n' m'] if it is given that [n = n'] and [m = m']. 
+ * (This is just to please Coq's type system...) *)
+Definition path_cast {n n' m m' : nat} (e1: n = n')
+  (e2 : m = m') (p : path n m) : path n' m'.
   rewrite e1 in p.
   rewrite e2 in p.
   auto. Show Proof.
 Defined.
 
+(* Saying that the [path_contains] property is preserved under [path_cast]. *)
+Lemma path_cast_eq {n n' m m': nat} (s : nat) (e1: n = n') (e2 : m = m') (p : path n m) :
+  path_contains s (path_cast e1 e2 p) -> path_contains s p.
+Proof.
+  intros.
+  rewrite <- e1 in H.
+  rewrite <- e2 in H.
+  auto.
+Qed.
 
 Fixpoint path_composition {n n' m : nat} (p1 : path n n') (p2 : path n' m) : path n m :=
   match p1 with
@@ -325,7 +333,8 @@ Proof.
   induction p1.
   - simpl in H1.
     apply H0.
-    admit. (* here the idea is to do [apply H1] but it fails. *)
+    apply (path_cast_eq x (eq_sym e) eq_refl p2). (* _crazy_ stuff *)
+    auto.
   - simpl in H1.
     destruct H1.
     + apply (H x).
