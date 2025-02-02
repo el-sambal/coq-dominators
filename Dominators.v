@@ -504,16 +504,16 @@ Proof.
     assert (~ idomw <:= idomv) by (apply Nat.lt_nge; auto).
     contradiction.
   }
-
-  (* XXX came till here for now *)
-
-  destruct idom1 as [idomv v dom1 _].
-  destruct idom2 as [idomw w dom2 _].
-  destruct dom1 as [idomv v _ dom1].
-  destruct dom2 as [idomw w _ dom2].
-  assert (exists p1 : path 0 v, path_is_in_tree p1 /\ ~ path_contains idomw p1). {
+  assert (ex_p1 : exists p1 : path 0 v, ~ path_contains idomw p1). {
+    (* This is easily seen by using De Morgan's law for quantifiers
+     * in combination with the fact that [~ dom idomw v],
+     * but I will admit it for now. *)
     admit.
   }
+  (* Now the idea is to concatenate this path with the tree path from
+   * [v] to [w]. This yields a path from [0] to [w] that does not include
+   * [idomw], which is again a contradiction. *)
+  destruct ex_p1 as [p1 Hp1].
 Qed.
 
 Lemma path_subpath_in_tree_general {a b : nat} (p : path a b) (n m : nat) :
