@@ -1,4 +1,5 @@
 Require Import PeanoNat.
+Require Import Classical_Pred_Type.
 
 Section Dominators.
 
@@ -479,8 +480,10 @@ Lemma LT_Lemma5_helper : forall v w idomv idomw : nat,
       v -*> w -> idomv -+> idomw -> idomw -+> v -> False.
 Proof.
   intros v w idomv idomw ifg1 ifg2 ifg3 ifg4 idom1 idom2 H1 H2 H3.
-  assert (~ dom idomw v). {
+  assert (ex_p1 : exists p1 : path 0 v, ~ path_contains idomw p1). {
+    apply not_all_ex_not.
     red. intros.
+    assert (dom idomw v) by (split; try (apply H3); auto).
     (* If [dom idomw v], then we must have [dom idomw idomv],
      * because [idomv] is dominated by all other dominators of [v]
      * by definition. Consider now the DFS tree path from [0] to [idomv];
@@ -504,16 +507,18 @@ Proof.
     assert (~ idomw <:= idomv) by (apply Nat.lt_nge; auto).
     contradiction.
   }
-  assert (ex_p1 : exists p1 : path 0 v, ~ path_contains idomw p1). {
-    (* This is easily seen by using De Morgan's law for quantifiers
-     * in combination with the fact that [~ dom idomw v],
-     * but I will admit it for now. *)
-    admit.
-  }
-  (* Now the idea is to concatenate this path with the tree path from
-   * [v] to [w]. This yields a path from [0] to [w] that does not include
+  (* Now we concatenate this path ([p1]) with the tree path from [v] to [w]
+   * ([p2]). This yields a path from [0] to [w] that does not include
    * [idomw], which is again a contradiction. *)
   destruct ex_p1 as [p1 Hp1].
+  destruct H1 as [p2 Hp2].
+  assert (~ path_contains idomw (p1 +++ p2)). {
+    admit.
+  }
+  destruct idom2 as [idomw w Hi2 _].
+  destruct Hi2 as [idomw w _ Hi2].
+  specialize Hi2 with (p := p1 +++ p2).
+  contradiction.
 Qed.
 
 Lemma path_subpath_in_tree_general {a b : nat} (p : path a b) (n m : nat) :
