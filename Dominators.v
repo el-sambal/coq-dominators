@@ -338,7 +338,7 @@ Notation "A +++ B" := (path_concat A B) (at level 50).
 (* If a property is true of all nodes in some path [p1] and
  * also of all nodes in some path [p2], then it is true of all
  * nodes in the concatenation of [p1] and [p2]. *)
-Lemma path_concat_preserves_properties :
+Lemma path_concat_preserves_path_contains :
   forall n n' m : nat, forall p1 : path n n', forall p2 : path n' m,
     forall P : nat -> Prop,
       (forall x : nat, path_contains x p1 -> P x) ->
@@ -359,7 +359,6 @@ Proof.
       * auto.
       * auto.
 Qed.
-
 
 (* Lemma 4 of the paper of Lengauer and Tarjan states the following:
  *
@@ -393,7 +392,7 @@ Proof.
     destruct ex_p_sd as [p2a]. assert (H2' := H2).
     destruct H2' as [H2a [[p2b Hp2] H2c]].
     exists (p2a +++ p2b).
-    apply path_concat_preserves_properties.
+    apply path_concat_preserves_path_contains.
     - intros. left.
       apply (path_subpath_in_tree_right 0 x sdomw p2a); auto.
     - intros.
@@ -444,7 +443,7 @@ Proof.
       contradiction.
 Qed.
 
-Lemma tree_path_helper_property {n m: nat} :
+Lemma tree_path_start_times_between_start_end {n m: nat} :
   forall (p : path n m) (s : nat), path_is_in_tree p ->
     path_contains s p -> (n <:= s /\ s <:= m).
 Proof.
@@ -474,6 +473,17 @@ Proof.
       * destruct H. apply IHp; auto.
 Qed.
 
+Lemma all_neq_not_path_contains {a b : nat} (p : path a b) (el : nat) :
+  (forall s : nat, path_contains s p -> s <> el) ->
+    ~ path_contains el p.
+Proof. Admitted.
+
+Lemma not_path_contains_all_neq {a b : nat} (p : path a b) (el : nat) :
+  ~ path_contains el p ->
+    (forall s : nat, path_contains s p -> s <> el).
+Proof. Admitted.
+
+
 Lemma LT_Lemma5_helper : forall v w idomv idomw : nat,
   node_in_fg v -> node_in_fg idomv -> node_in_fg w -> node_in_fg idomw ->
     is_idom_of idomv v -> is_idom_of idomw w ->
@@ -499,7 +509,7 @@ Proof.
     destruct Hwv as [idomw idomv _ Hwv].
     specialize Hwv with (p := p').
     assert (idomw <:= idomv) by
-      (apply (tree_path_helper_property p' idomw); auto).
+      (apply (tree_path_start_times_between_start_end p' idomw); auto).
     assert (idomw >: idomv). {
       apply strict_ancestor_lower_start_time.
       auto.
@@ -513,7 +523,15 @@ Proof.
   destruct ex_p1 as [p1 Hp1].
   destruct H1 as [p2 Hp2].
   assert (~ path_contains idomw (p1 +++ p2)). {
-    admit.
+    apply all_neq_not_path_contains.
+    apply path_concat_preserves_path_contains.
+    - apply not_path_contains_all_neq. auto.
+    - intros. red. intros H0. rewrite H0 in H. clear H0.
+      apply strict_ancestor_lower_start_time in H3.
+      apply Nat.lt_nge in H3.
+      assert (v <:= idomw) by
+        (apply (tree_path_start_times_between_start_end p2); auto).
+      contradiction.
   }
   destruct idom2 as [idomw w Hi2 _].
   destruct Hi2 as [idomw w _ Hi2].
