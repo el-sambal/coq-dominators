@@ -13,9 +13,6 @@ Variable (tree_edges: nat -> nat -> Prop).
 (* The edges in the flow graph that are not part of the DFS tree. *)
 Variable (other_edges: nat -> nat -> Prop).
 
-(* Maps vertices to their start time, as marked by DFS. *)
-Variable (start_time: nat -> nat).
-
 (* This node exists within the flow graph *)
 Definition node_in_fg (n : nat) := n < num_nodes.
 
@@ -27,18 +24,6 @@ Notation "A ~~> B" := (other_edges A B) (at level 70).
   
 (* there is an edge (either tree or non-tree) from [A] to [B] *)
 Notation "A ==> B" := (A --> B \/ A ~~> B) (at level 70).
-
-(* the start time of [A] is <= the start time of [B] *)
-Notation "A <:= B" := (start_time A <= start_time B) (at level 70).
-
-(* the start time of [A] is < the start time of [B] *)
-Notation "A <: B" := (start_time A < start_time B) (at level 70).
-
-(* the start time of [A] is >= the start time of [B] *)
-Notation "A >:= B" := (start_time A >= start_time B) (at level 70).
-
-(* the start time of [A] is > the start time of [B] *)
-Notation "A >: B" := (start_time A > start_time B) (at level 70).
 
 Inductive path (a b : nat) : Type :=
   | path_refl :
@@ -93,7 +78,7 @@ Axiom FG_valid__path_from_root : forall n : nat, node_in_fg n ->
   exists p : path 0 n, path_is_in_tree p.
 Axiom FG_valid__node_has_par : forall n : nat, node_in_fg n ->
   exists par : nat, par --> n.
-Axiom FG_valid__par_earlier : forall n par : nat, par --> n -> par <: n.
+Axiom FG_valid__par_earlier : forall n par : nat, par --> n -> par < n.
 
 (* Lemma 1 from Lengauer, Tarjan:
  *  "If [v], [w] are vertices of G such that [v <:= w], then any
@@ -104,27 +89,27 @@ Axiom FG_valid__par_earlier : forall n par : nat, par --> n -> par <: n.
  * As it is a true fact for DFS trees in general, we take it as an axiom.
  ***)
 Axiom LT_Lemma1 : 
-  forall v w : nat, v <:= w -> forall p : path v w,
+  forall v w : nat, v <= w -> forall p : path v w,
     exists m : nat, path_contains m p /\ m -*> v /\ m -*> w.
 
 (* Simple helper lemmas. *)
-Lemma ancestor_lower_start_time : forall n m : nat , n -*> m -> n <:= m.
+Lemma ancestor_lower_start_time : forall n m : nat , n -*> m -> n <= m.
 Proof.
   intros n m [p]. induction p.
-  - apply Nat.eq_le_incl. apply (f_equal start_time). auto.
+  - apply Nat.eq_le_incl. auto.
   - destruct H. apply Nat.lt_le_incl.
-    apply (Nat.lt_le_trans (start_time a) (start_time a') (start_time b)).
+    apply (Nat.lt_le_trans _ a' _).
     + apply FG_valid__par_earlier. auto.
     + apply IHp. auto.
 Qed.
 
 Lemma strict_ancestor_lower_start_time :
-  forall n m : nat , n -+> m -> n <: m.
+  forall n m : nat , n -+> m -> n < m.
 Proof.
   intros n m [[p Hp] e]. destruct p.
   - contradiction.
   - destruct Hp.
-    apply (Nat.lt_le_trans (start_time n) (start_time a') (start_time m)).
+    apply (Nat.lt_le_trans _ a' _).
     + apply FG_valid__par_earlier. auto.
     + apply ancestor_lower_start_time. exists p. auto.
 Qed.
@@ -132,7 +117,7 @@ Qed.
 Fixpoint is_sdom_path_helper {n m : nat} (p : path n m) : Prop :=
   match p with
   | path_refl _ _ _ => True
-  | path_prepend _ _ n' p' _ => n >: m /\ is_sdom_path_helper p'
+  | path_prepend _ _ n' p' _ => n > m /\ is_sdom_path_helper p'
   end.
 
 Definition is_sdom_path {n m : nat} (p : path n m) : Prop :=
@@ -150,7 +135,7 @@ Definition sdom_candidate (n m : nat) : Prop :=
 (* We define [is_sdom_of A B] to be true if [A] is the [<:]-minimum
  * node of all [sdom_candidate]s of [B] *)
 Definition is_sdom_of (n m : nat) : Prop :=
-  m <> 0 /\ (sdom_candidate n m /\ forall c, sdom_candidate c m -> n <:= c).
+  m <> 0 /\ (sdom_candidate n m /\ forall c, sdom_candidate c m -> n <= c).
 
 (* We define [dom A B] to be true if [A] dominates [B], i.e.,
  * every path from the root to [B] must go through [A], and [A <> B]. *)
@@ -213,12 +198,11 @@ Qed.
 
 Lemma sdom_path_helper_property :
   forall n m s : nat, forall p : path n m,
-    is_sdom_path_helper p -> path_contains s p -> s >:= m.
+    is_sdom_path_helper p -> path_contains s p -> s >= m.
 Proof.
   intros.
   induction p.
-  - simpl in H0. apply Nat.eq_le_incl.
-    apply (f_equal start_time). auto.
+  - simpl in H0. apply Nat.eq_le_incl. auto.
   - simpl in H. destruct H. simpl in H0.
     destruct H0.
     + rewrite <- H0. apply Nat.lt_le_incl. auto.
@@ -227,11 +211,11 @@ Qed.
 
 Lemma LT_Lemma3_Helper :
   forall n m s : nat, forall p : path n m,
-    is_sdom_path_helper p -> s <: m -> ~ path_contains s p.
+    is_sdom_path_helper p -> s < m -> ~ path_contains s p.
 Proof.
   intros. red. intros.
-  assert (s >:= m) by (apply (sdom_path_helper_property n m s p); auto).
-  assert (~ s >:= m) by (apply Nat.lt_nge; auto).
+  assert (s >= m) by (apply (sdom_path_helper_property n m s p); auto).
+  assert (~ s >= m) by (apply Nat.lt_nge; auto).
   contradiction.
 Qed.
 
@@ -251,10 +235,9 @@ Proof.
    * Furthermore, there exists a path [path_sdomw_w] from [sdomw] to [w]
    * of which all intermediate nodes are [>: w]. *)
   destruct H as [H [[path_sdomw_w path_sdom_path] sdomw_minimal_cand]].
-  assert (sdomw <: w).
+  assert (sdomw < w).
   {
-    apply (Nat.le_lt_trans
-      (start_time sdomw) (start_time parw) (start_time w)).
+    apply (Nat.le_lt_trans sdomw parw w).
     - apply sdomw_minimal_cand. assert (e1 : w=w) by reflexivity.
       assert (e2 : parw ==> w) by (left; auto).
       exists (path_prepend parw w w (path_refl w w e1) e2). simpl. auto.
@@ -286,9 +269,8 @@ Proof.
       + assert (~ path_contains anc path_sdomw'_w). {
           apply LT_Lemma3_Helper.
           - auto. 
-          - assert (anc <: w). {
-              apply (Nat.le_lt_trans
-                (start_time anc) (start_time sdomw) (start_time w)).
+          - assert (anc < w). {
+              apply (Nat.le_lt_trans anc sdomw w).
               * apply (ancestor_lower_start_time anc sdomw). auto.
               * auto. 
             }
@@ -298,7 +280,7 @@ Proof.
   }
   split.
   - rewrite H4. auto.
-  - red. intros. apply (f_equal start_time) in H5.
+  - red. intros.
     apply (Nat.lt_neq) in H3. auto.
 Qed.
 
@@ -372,7 +354,7 @@ Proof.
   intros w idomw sdomw infg1 infg2 infg3 H1 H2 [H3 H4].
   (* We construct the path [p1] as the DFS tree path from [0] to [w]. *)
   assert (ex_p1 : exists p1: path 0 w, forall n : nat,
-      path_contains n p1 -> n -*> sdomw \/ n <:= w). {
+      path_contains n p1 -> n -*> sdomw \/ n <= w). {
     specialize FG_valid__path_from_root with (n := w).
     intros H'. apply H' in H3. clear H' H4.
     destruct H3 as [p Hp]. exists p. intros. right.
@@ -386,7 +368,7 @@ Proof.
    * (such a path exists by definition because [sdomw] is
    * the semidomimator of [w]). *)
   assert (ex_p2 : exists p2 : path 0 w, forall n : nat,
-      path_contains n p2 -> n -*> sdomw \/ n >:= w). {
+      path_contains n p2 -> n -*> sdomw \/ n >= w). {
     assert (ex_p_sd : 0 -*> sdomw)
       by (apply FG_valid__path_from_root; auto).
     destruct ex_p_sd as [p2a]. assert (H2' := H2).
@@ -397,13 +379,12 @@ Proof.
       apply (path_subpath_in_tree_right 0 x sdomw p2a); auto.
     - intros.
       destruct p2b.
-      + assert (start_time sdomw <> start_time w). {
+      + assert (sdomw <> w). {
           apply Nat.lt_neq.
           apply strict_ancestor_lower_start_time.
           apply LT_Lemma3; auto.
         }
         assert (e' := e).
-        apply (f_equal start_time) in e'.
         contradiction.
       + simpl in Hp2.
         destruct H0.
@@ -416,7 +397,6 @@ Proof.
    * are either an ancestor of [sdomw] or are [<:= sdomw].
    * The path [p2] has the property that all its vertices
    * are either an ancestor of [sdomw] or are [>:= sdomw].
-
    * As [idomw] by definition is a vertex of all paths from [0] to [w],
    * we find that either [idomw -*> sdomw], in which the goal is proven, or
    * [start_time idomw = start_time w], which contradicts [LT_Lemma2].*)
@@ -425,17 +405,17 @@ Proof.
   assert (H1' := H1).
   destruct H1 as [idomw w Hi _].
   destruct Hi as [idomw w _ Hi].
-  assert (Hlhs : idomw -*> sdomw \/ idomw <:= w)
+  assert (Hlhs : idomw -*> sdomw \/ idomw <= w)
     by (apply Hp1; specialize Hi with (p := p1); auto).
-  assert (Hrhs : idomw -*> sdomw \/ idomw >:= w)
+  assert (Hrhs : idomw -*> sdomw \/ idomw >= w)
     by (apply Hp2; specialize Hi with (p := p2); auto).
   destruct Hlhs.
   - auto.
   - destruct Hrhs.
     + auto.
-    + assert (start_time idomw = start_time w)
+    + assert (idomw = w)
         by (apply (Nat.le_antisymm); auto).
-      assert (start_time idomw <> start_time w). {
+      assert (idomw <> w). {
         apply Nat.lt_neq.
         apply strict_ancestor_lower_start_time.
         apply LT_Lemma2; auto.
@@ -445,19 +425,19 @@ Qed.
 
 Lemma tree_path_start_times_between_start_end {n m: nat} :
   forall (p : path n m) (s : nat), path_is_in_tree p ->
-    path_contains s p -> (n <:= s /\ s <:= m).
+    path_contains s p -> (n <= s /\ s <= m).
 Proof.
   induction p.
   - intros. simpl in H0.
     split; apply Nat.eq_le_incl
-      ; (apply f_equal; (rewrite e || rewrite H0); auto).
+      ; ((rewrite e || rewrite H0); auto).
   - intros. simpl in H0.
     destruct H0.
     + split.
-      * apply Nat.eq_le_incl. apply f_equal. auto.
+      * apply Nat.eq_le_incl. auto.
       * rewrite <- H0.
         specialize IHp with (s := a').
-        apply (Nat.le_trans _ (start_time a') _).
+        apply (Nat.le_trans _ a' _).
         -- apply Nat.lt_le_incl.
            apply FG_valid__par_earlier.
            simpl in H. destruct H as [H _]. auto.
@@ -465,7 +445,7 @@ Proof.
            ++ simpl in H. destruct H as [_ H]. auto.
            ++ destruct p; simpl; auto.
     + simpl in H. split.
-      * apply (Nat.le_trans _ (start_time a') _).
+      * apply (Nat.le_trans _ a' _).
         -- apply Nat.lt_le_incl.
            apply FG_valid__par_earlier.
            destruct H as [H _]. auto.
@@ -476,15 +456,42 @@ Qed.
 Lemma all_neq_not_path_contains {a b : nat} (p : path a b) (el : nat) :
   (forall s : nat, path_contains s p -> s <> el) ->
     ~ path_contains el p.
-Proof. Admitted.
+Proof.
+  intros.
+  induction p.
+  - apply H. simpl. auto.
+  - simpl. red. intros H0.
+    destruct H0.
+    + simpl in H.
+      assert (a <> el) by (apply H;  auto).
+      contradiction.
+    + simpl in H.
+      assert (~ path_contains el p) by
+        (apply IHp; intros; apply H; auto).
+      contradiction.
+Qed.
 
 Lemma not_path_contains_all_neq {a b : nat} (p : path a b) (el : nat) :
   ~ path_contains el p ->
     (forall s : nat, path_contains s p -> s <> el).
-Proof. Admitted.
+Proof. 
+  intros H s H0.
+  induction p.
+  - simpl in H0. simpl in H.
+    rewrite <- H0. auto.
+  - simpl in H0. simpl in H.
+    destruct H0.
+    + rewrite H0 in H.
+      red. intros. red in H.
+      apply H. auto.
+    + apply IHp.
+      * red. intros. red in H.
+        apply H. auto.
+      * auto.
+Qed.
 
-
-Lemma LT_Lemma5_helper : forall v w idomv idomw : nat,
+(* Helper lemma for the real lemma 5 from Lengauer and Tarjan's paper. *)
+Lemma LT_Lemma5_Helper : forall v w idomv idomw : nat,
   node_in_fg v -> node_in_fg idomv -> node_in_fg w -> node_in_fg idomw ->
     is_idom_of idomv v -> is_idom_of idomw w ->
       v -*> w -> idomv -+> idomw -> idomw -+> v -> False.
@@ -508,13 +515,13 @@ Proof.
     assert (Hwv' := Hwv).
     destruct Hwv as [idomw idomv _ Hwv].
     specialize Hwv with (p := p').
-    assert (idomw <:= idomv) by
+    assert (idomw <= idomv) by
       (apply (tree_path_start_times_between_start_end p' idomw); auto).
-    assert (idomw >: idomv). {
+    assert (idomw > idomv). {
       apply strict_ancestor_lower_start_time.
       auto.
     }
-    assert (~ idomw <:= idomv) by (apply Nat.lt_nge; auto).
+    assert (~ idomw <= idomv) by (apply Nat.lt_nge; auto).
     contradiction.
   }
   (* Now we concatenate this path ([p1]) with the tree path from [v] to [w]
@@ -529,7 +536,7 @@ Proof.
     - intros. red. intros H0. rewrite H0 in H. clear H0.
       apply strict_ancestor_lower_start_time in H3.
       apply Nat.lt_nge in H3.
-      assert (v <:= idomw) by
+      assert (v <= idomw) by
         (apply (tree_path_start_times_between_start_end p2); auto).
       contradiction.
   }
@@ -544,7 +551,7 @@ Lemma path_subpath_in_tree_general {a b : nat} (p : path a b) (n m : nat) :
 Proof.
 Admitted.
 
-Lemma start_time_lt_nge : forall n m : nat, n <: m <-> ~ m <:= n.
+Lemma start_time_lt_nge : forall n m : nat, n < m <-> ~ m <= n.
 Proof. Admitted.
 
 (* Lemma 5 of the paper of Lengauer and Tarjan states the following:
@@ -595,7 +602,7 @@ Proof.
 
   
 
-Qed.
+Admitted.
 
 (* Lengauer, Tarjan:
  * The edges {(idom(w),w) | w in V\{r}} form a directed tree
@@ -617,7 +624,7 @@ Theorem LT_Theorem2 :
     is_sdom_of sdomw w -> node_in_fg w -> w <> 0 ->
       (
         forall u sdomu : nat, is_sdom_of sdomu u ->
-          (node_in_fg u /\ sdomw -+> u /\ u -*> w) -> sdomu >:= sdomw
+          (node_in_fg u /\ sdomw -+> u /\ u -*> w) -> sdomu >= sdomw
       )
         -> idomw = sdomw.
 Proof. Admitted.
@@ -632,8 +639,8 @@ Theorem LT_Theorem3 :
     is_sdom_of sdomw w -> is_idom_of idomu u -> is_idom_of idomw w ->
       w <> 0 -> node_in_fg u -> node_in_fg w ->
         (sdomw -+> u /\ u -*> w) ->
-          (forall u' : nat, (sdomw -+> u' /\ u' -*> w) -> u <:= u') ->
-    (sdomu <:= sdomw /\ idomu = idomw).
+          (forall u' : nat, (sdomw -+> u' /\ u' -*> w) -> u <= u') ->
+    (sdomu <= sdomw /\ idomu = idomw).
 Proof. Admitted.
 
 
@@ -648,7 +655,7 @@ Theorem LT_Corollary1 :
     is_idom_of idomw w -> is_sdom_of sdomu u -> is_sdom_of sdomw w ->
       w <> 0 -> node_in_fg u -> node_in_fg w ->
         (sdomw -+> u /\ u -*> w) ->
-          (forall u' : nat, (sdomw -+> u' /\ u' -*> w) -> u <:= u') ->
+          (forall u' : nat, (sdomw -+> u' /\ u' -*> w) -> u <= u') ->
     ((sdomw = sdomu -> idomw = sdomw) /\
      (sdomw <> sdomu -> idomw = idomu)).
 Proof. Admitted.
@@ -668,10 +675,10 @@ Theorem LT_Theorem4 :
   forall w sdomw : nat, is_sdom_of sdomw w -> w <> 0 -> node_in_fg w ->
   is_minimum_of (sdomw)
   (
-    fun x => (x ==> w /\ x <: w) \/
+    fun x => (x ==> w /\ x < w) \/
       (
         exists u v : nat, is_sdom_of x u /\ node_in_fg u /\
-          node_in_fg v /\ u >: w /\ v ==> w /\ u -*> v
+          node_in_fg v /\ u > w /\ v ==> w /\ u -*> v
       )
   )
 .
