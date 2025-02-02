@@ -60,7 +60,8 @@ Fixpoint path_is_in_tree {a b : nat} (p : path a b) : Prop :=
   end.
 
 (* there exists a possibly empty path from A to B in the DFS tree *)
-Notation "A -*> B" := (exists p : path A B, path_is_in_tree p) (at level 70).
+Notation "A -*> B" :=
+  (exists p : path A B, path_is_in_tree p) (at level 70).
 
 (* there exists a nonempty path from A to B in the DFS tree *)
 Notation "A -+> B" := ((A -*> B) /\ (A <> B)) (at level 70).
@@ -116,7 +117,8 @@ Proof.
     + apply IHp. auto.
 Qed.
 
-Lemma strict_ancestor_lower_start_time : forall n m : nat , n -+> m -> n <: m.
+Lemma strict_ancestor_lower_start_time :
+  forall n m : nat , n -+> m -> n <: m.
 Proof.
   intros n m [[p Hp] e]. destruct p.
   - contradiction.
@@ -138,30 +140,32 @@ Definition is_sdom_path {n m : nat} (p : path n m) : Prop :=
   | path_prepend _ _ n' p' _ => is_sdom_path_helper p'
   end.
 
-(* We define [sdom_candidate n m] to be true if and only if there exists a path
- * [n ~~> v_1 ~~> ... ~~> v_n ~~> m] such that [v_i >: m] for all [i] in [1..=m]. *)
+(* We define [sdom_candidate n m] to be true if and only if there
+ * exists a path [n ~~> v_1 ~~> ... ~~> v_n ~~> m] such that
+ * [v_i >: m] for all [i] in [1..=m]. *)
 Definition sdom_candidate (n m : nat) : Prop :=
   exists p : path n m, is_sdom_path p.
 
-(* We define [is_sdom_of A B] to be true if and only if [A] is the [<:]-minimum
+(* We define [is_sdom_of A B] to be true if [A] is the [<:]-minimum
  * node of all [sdom_candidate]s of [B] *)
 Definition is_sdom_of (n m : nat) : Prop :=
   m <> 0 /\ (sdom_candidate n m /\ forall c, sdom_candidate c m -> n <:= c).
 
-(* dom A B <=> A dominates B, i.e.,
- * every path from the root to B must go through A, and A<>B. *)
+(* We define [dom A B] to be true if [A] dominates [B], i.e.,
+ * every path from the root to [B] must go through [A], and [A <> B]. *)
 Inductive dom : nat -> nat -> Prop :=
   | is_dom (n m : nat) : n <> m ->
       (forall p : path 0 m, path_contains n p) -> dom n m.
 
-(* is_idom_of A B <=> A is the immediate dominator of B, i.e.,
- * A dominates B and every other dominator of B dominates A. *)
+(* We define [is_idom_of A B] to be true if [A] is the
+ * immediate dominator of [B], i.e.,
+ * [A] dominates [B] and every other dominator of [B] dominates [A]. *)
 Inductive is_idom_of : nat -> nat -> Prop :=
   | is_idom (n m : nat) : dom n m -> (forall k : nat,
       node_in_fg k -> dom k m -> dom k n) ->
         is_idom_of n m.
 
-(* Each node w <> r in the flowgraph has exactly one immediate dominator *)
+(* Each node [w <> r] in the flowgraph has exactly one imm. dominator *)
 Theorem LT_Theorem1_Part1 :
   forall n : nat, node_in_fg n ->
     (exists id : nat, forall id' : nat, id = id' <-> is_idom_of id' n).
@@ -212,22 +216,10 @@ Lemma LT_Lemma3_Helper :
   forall n m s : nat, forall p : path n m,
     is_sdom_path_helper p -> s <: m -> ~ path_contains s p.
 Proof.
-  (* TODO: rewrite this proof using [sdom_path_helper_property] *)
   intros. red. intros.
-  induction p.
-  - simpl in H1. apply (f_equal start_time) in H1.
-    apply (Nat.lt_neq) in H0.
-    symmetry in H1. contradiction.
-  - simpl in H1. simpl in H. destruct H. apply IHp.
-    + auto.
-    + auto.
-    + destruct H1.
-      * rewrite <- H1 in H0.
-        assert (a <:= b) by
-          (apply (Nat.lt_le_incl (start_time a) (start_time b)); auto).
-        assert (~ a >: b) by (apply (Nat.le_ngt (start_time a) (start_time b)); auto).
-        contradiction.
-      * auto.
+  assert (s >:= m) by (apply (sdom_path_helper_property n m s p); auto).
+  assert (~ s >:= m) by (apply Nat.lt_nge; auto).
+  contradiction.
 Qed.
 
 (* Lemma 3 of the paper of Lengauer and Tarjan states the following:
@@ -256,7 +248,7 @@ Proof.
     - apply FG_valid__par_earlier. auto.
   }
   (* Part 3: by Lemma 1 of the paper of Lengauer and Tarjan, the path from
-   * [sdomw] to [w] must contain a common ancestor [anc] of [sdomw] and [w]. *)
+   * [sdomw] to [w] contains a common ancestor [anc] of [sdomw] and [w]. *)
   assert (exists m : nat, path_contains m path_sdomw_w /\
       m -*> sdomw /\ m -*> w) as ex_anc. {
     apply (LT_Lemma1 sdomw w).
@@ -266,12 +258,13 @@ Proof.
   destruct anc_comm_anc as [path_cts_anc [anc_to_sdomw anc_to_w]].
   (* Part 4: prove that [sdomw = anc], from which the final goal follows.
    * How we do it: we use the path [path_sdomw_w], of which it is known that
-   * all strictly intermediate nodes are [>: w]. As [anc] is an ancestor of [w],
+   * all strictly intermed. nodes are [>: w]. As [anc] is an ancestor of [w],
    * by tree properties, we have [anc <:= w]. Thus, [anc] cannot be equal to
-   * any of the intermediate nodes. Thus, [anc] must be either equal to [sdomw]
+   * any of the intermed. nodes. Thus, [anc] must be either equal to [sdomw]
    * or to [w]. [anc] can also not be equal to [w] because it is known that
    * [anc <:= sdomw <: w]. Hence, the only possibility left is [anc = sdomw].
-   * The proof makes use of induction, which is delegated to the helper lemma [LT_Lemma3_Helper]. *)
+   * The proof makes use of induction, which is
+   * delegated to the helper lemma [LT_Lemma3_Helper]. *)
   assert (sdomw = anc). {
     destruct path_sdomw_w as [ | sdomw' path_sdomw'_w o].
     - destruct path_cts_anc. auto.
@@ -306,9 +299,10 @@ Definition path_cast {n n' m m' : nat} (e1: n = n')
   auto. Show Proof.
 Defined.
 
-(* Saying that the [path_contains] property is preserved under [path_cast]. *)
-Lemma path_cast_eq {n n' m m': nat} (s : nat) (e1: n = n') (e2 : m = m') (p : path n m) :
-  path_contains s (path_cast e1 e2 p) -> path_contains s p.
+(* The [path_contains] property is preserved under [path_cast]. *)
+Lemma path_cast_preserves_path_contains :
+  forall {n n' m m' s: nat} (e1: n = n') (e2 : m = m') (p : path n m),
+    path_contains s (path_cast e1 e2 p) -> path_contains s p.
 Proof.
   intros.
   rewrite <- e1 in H.
@@ -316,36 +310,43 @@ Proof.
   auto.
 Qed.
 
-Fixpoint path_composition {n n' m : nat} (p1 : path n n') (p2 : path n' m) : path n m :=
+(* Path concatenation *)
+Fixpoint path_concat {n n' m : nat}
+    (p1 : path n n') (p2 : path n' m) : path n m :=
   match p1 with
   | path_refl _ _ e => path_cast (eq_sym e) eq_refl p2
-  | path_prepend _ _ n'' p1' e => path_prepend n m n'' (path_composition p1' p2) e
+  | path_prepend _ _ n'' p1' e =>
+      path_prepend n m n'' (path_concat p1' p2) e
   end.
 
-Lemma path_comp_preserves_properties :
+(* path concatenation *)
+Notation "A +++ B" := (path_concat A B) (at level 50).
+
+(* If a property is true of all nodes in some path [p1] and
+ * also of all nodes in some path [p2], then it is true of all
+ * nodes in the concatenation of [p1] and [p2]. *)
+Lemma path_concat_preserves_properties :
   forall n n' m : nat, forall p1 : path n n', forall p2 : path n' m,
     forall P : nat -> Prop,
       (forall x : nat, path_contains x p1 -> P x) ->
       (forall x : nat, path_contains x p2 -> P x) ->
-      (forall x : nat, path_contains x (path_composition p1 p2) -> P x).
+      (forall x : nat, path_contains x (p1 +++ p2) -> P x).
 Proof.
   intros.
   induction p1.
   - simpl in H1.
     apply H0.
-    apply (path_cast_eq x (eq_sym e) eq_refl p2). (* _crazy_ stuff *)
+    apply (path_cast_preserves_path_contains (eq_sym e) eq_refl p2).
     auto.
   - simpl in H1.
     destruct H1.
-    + apply (H x).
-      simpl.
-      left.
-      auto.
+    + apply (H x). simpl. left. auto.
     + apply (IHp1 p2).
-      * (intros; apply (H x0); right). auto.
+      * intros. apply (H x0). right. auto.
       * auto.
       * auto.
 Qed.
+
 
 (* Lemma 4 of the paper of Lengauer and Tarjan states the following:
  *
@@ -367,18 +368,19 @@ Proof.
     apply (path_subpath_in_tree_right 0 n w p); auto.
   }
   destruct ex_p1 as [p1 Hp1].
-  (* We construct the path [p2] as the path that is the composition
+  (* We construct the path [p2] as the path that is the concatenation
    * of the DFS tree path from [0] to [sdomw] and the path from
    * [sdomw] to [w] for which all intermediate nodes are [>: w]
    * (such a path exists by definition because [sdomw] is
    * the semidomimator of [w]). *)
   assert (ex_p2 : exists p2 : path 0 w, forall n : nat,
       path_contains n p2 -> n -*> sdomw \/ n >:= w). {
-    assert (ex_p_sd : 0 -*> sdomw) by (apply FG_valid__path_from_root; auto).
+    assert (ex_p_sd : 0 -*> sdomw)
+      by (apply FG_valid__path_from_root; auto).
     destruct ex_p_sd as [p2a]. assert (H2' := H2).
     destruct H2' as [H2a [[p2b Hp2] H2c]].
-    exists (path_composition p2a p2b).
-    apply path_comp_preserves_properties.
+    exists (p2a +++ p2b).
+    apply path_concat_preserves_properties.
     - intros. left.
       apply (path_subpath_in_tree_right 0 x sdomw p2a); auto.
     - intros.
@@ -405,7 +407,7 @@ Proof.
 
    * As [idomw] by definition is a vertex of all paths from [0] to [w],
    * we find that either [idomw -*> sdomw], in which the goal is proven, or
-   * [start_time idomw = start_time w], which is impossible by LT_Lemma2. *)
+   * [start_time idomw = start_time w], which contradicts [LT_Lemma2].*)
   specialize Hp1 with (n := idomw).
   specialize Hp2 with (n := idomw).
   assert (H1' := H1).
