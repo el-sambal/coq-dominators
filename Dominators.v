@@ -3,18 +3,25 @@ Require Import Classical_Pred_Type.
 
 Section Dominators.
 
-(* The number of vertices in the flow graph, including the root.
- * Nodes are numbered [0, num_nodes); 0 is the root. *)
+(* [num_nodes] is the number of vertices in the flow graph.
+ *
+ * Nodes are identified by their start time (as given by DFS),
+ * which is in the range [0, num_nodes). The root node is 0. 
+ * The idea is that all [nat]s that are [>= num_nodes] are
+ * meaningless in the sense that they do not correspond to any
+ * vertex. Where required, we use [node_in_fg] (defined below)
+ * to ensure that we are not only proving all these properties
+ * for infinite flow graphs ;) *)
 Variable (num_nodes : nat).
+
+(* This node exists within the flow graph *)
+Definition node_in_fg (n : nat) := n < num_nodes.
 
 (* The edges of the depth first search tree (DFS tree). *)
 Variable (tree_edges: nat -> nat -> Prop).
 
 (* The edges in the flow graph that are not part of the DFS tree. *)
 Variable (other_edges: nat -> nat -> Prop).
-
-(* This node exists within the flow graph *)
-Definition node_in_fg (n : nat) := n < num_nodes.
 
 (* there is a tree edge from [A] to [B] *)
 Notation "A --> B" := (tree_edges A B) (at level 70).
@@ -77,11 +84,14 @@ Qed.
 Axiom FG_valid__path_from_root : forall n : nat, node_in_fg n ->
   exists p : path 0 n, path_is_in_tree p.
 Axiom FG_valid__node_has_par : forall n : nat, node_in_fg n ->
-  exists par : nat, par --> n.
+  n <> 0 -> exists par : nat, par --> n.
 Axiom FG_valid__par_earlier : forall n par : nat, par --> n -> par < n.
+Axiom FG_valid__only_one_tree_path_from_root :
+  forall (n s : nat) (p : path 0 n), path_is_in_tree p ->
+    (s -*> n) -> path_contains s p.
 
 (* Lemma 1 from Lengauer, Tarjan:
- *  "If [v], [w] are vertices of G such that [v <:= w], then any
+ *  "If [v], [w] are vertices of G such that [v <= w], then any
  *   Path from [v] to [w] contains some common ancestor of
  *   [v] and [w] in the DFS tree."
  *
@@ -128,11 +138,11 @@ Definition is_sdom_path {n m : nat} (p : path n m) : Prop :=
 
 (* We define [sdom_candidate n m] to be true if and only if there
  * exists a path [n ~~> v_1 ~~> ... ~~> v_n ~~> m] such that
- * [v_i >: m] for all [i] in [1..=m]. *)
+ * [v_i > m] for all [i] in [1..=m]. *)
 Definition sdom_candidate (n m : nat) : Prop :=
   exists p : path n m, is_sdom_path p.
 
-(* We define [is_sdom_of A B] to be true if [A] is the [<:]-minimum
+(* We define [is_sdom_of A B] to be true if [A] is the minimum
  * node of all [sdom_candidate]s of [B] *)
 Definition is_sdom_of (n m : nat) : Prop :=
   m <> 0 /\ (sdom_candidate n m /\ forall c, sdom_candidate c m -> n <= c).
@@ -150,12 +160,6 @@ Inductive is_idom_of : nat -> nat -> Prop :=
   | is_idom (n m : nat) : dom n m -> (forall k : nat,
       node_in_fg k -> dom k m -> dom k n) ->
         is_idom_of n m.
-
-(* Each node [w <> r] in the flowgraph has exactly one imm. dominator *)
-Theorem LT_Theorem1_Part1 :
-  forall n : nat, node_in_fg n ->
-    (exists id : nat, forall id' : nat, id = id' <-> is_idom_of id' n).
-Proof. Admitted.
 
 Theorem LT_Lemma2_Helper :
   forall w domw : nat, dom domw w -> node_in_fg w ->
@@ -182,7 +186,7 @@ Qed.
 
 (* Lemma 2 of the paper of Lengauer and Tarjan states the following:
  *
- *  "For any vertex [w <> r], [idom(w) -+> w]."
+ *  "For any vertex [w <> 0], [idom(w) -+> w]."
  *)
 Theorem LT_Lemma2 :
   forall w idomw : nat, is_idom_of idomw w -> node_in_fg w ->
@@ -195,6 +199,79 @@ Proof.
   intros. destruct H.
   apply LT_Lemma2_Helper; auto.
 Qed.
+
+Lemma root_has_no_dom (v w : nat) : dom v w -> w <> 0.
+Proof.
+  intros. red. intros.
+  assert (v = 0). {
+    apply Nat.eq_dne.
+    red. intros.
+    destruct H.
+    specialize H2 with (p := path_refl 0 m (eq_sym H0)).
+    simpl in H2.
+    symmetry in H2.
+    contradiction.
+  }
+  destruct H.
+  rewrite <- H0 in H1.
+  contradiction.
+Qed.
+
+Lemma dom_antisymm_helper :
+  forall v w : nat, node_in_fg v -> node_in_fg w ->
+    dom v w -> dom w v -> v < w.
+Proof.
+  intros.
+  apply strict_ancestor_lower_start_time.
+  apply LT_Lemma2_Helper; (try (apply (root_has_no_dom v w)); auto).
+Qed.
+
+Lemma dom_antisymm :
+  forall v w : nat, node_in_fg v -> node_in_fg w ->
+    dom v w -> dom w v -> v = w.
+Proof.
+  intros.
+  assert (v <= w). {
+    apply Nat.lt_le_incl.
+    apply dom_antisymm_helper; auto.
+  }
+  assert (~ v <= w). {
+    apply Nat.lt_nge.
+    apply dom_antisymm_helper; auto.
+  }
+  contradiction.
+Qed.
+
+(* Each node [w <> 0] in the flowgraph has exactly one imm. dominator *)
+Theorem LT_Theorem1_Part1 :
+  forall w : nat, node_in_fg w -> w <> 0 ->
+    (exists idomw : nat, is_idom_of idomw w)
+    /\ (forall idomw1 idomw2 : nat, node_in_fg idomw1 -> node_in_fg idomw2 -> 
+          is_idom_of idomw1 w -> is_idom_of idomw2 w -> idomw1 = idomw2).
+Proof.
+  intros w H H'.
+  split.
+  - (* To prove this subgoal (that there exists an immediate dominator for
+     * each vertex), one would either explicitly construct the immediate
+     * dominator, which is of course hard, or use classical logic.
+     * In any case, the proof of this subgoal is challenging.
+     * I simply admit it here.
+     * Lengauer and Tarjan also do not prove Theorem 1 in their paper. *)
+    admit.
+  - (* This subgoal (that any two immediate dominators
+     * must be equal) is easier to prove, using [dom_antisymm],
+     * which in turn uses Lemma 2 of the paper.
+     * Note that in the paper, Lemma 2 appears after Theorem 1,
+     * but for us it is easier to prove things in a different order. *)
+    intros idomw1 idomw2 infg0 infg1 H0 H1.
+    destruct H0 as [idomw1 w].
+    destruct H1 as [idomw2 w].
+    specialize H2 with (k := idomw2).
+    specialize H3 with (k := idomw1).
+    assert (dom idomw2 idomw1) by (apply H2; auto).
+    assert (dom idomw1 idomw2) by (apply H3; auto).
+    apply dom_antisymm; auto.
+Admitted. (* because the first subgoal is admitted *)
 
 Lemma sdom_path_helper_property :
   forall n m s : nat, forall p : path n m,
@@ -221,7 +298,7 @@ Qed.
 
 (* Lemma 3 of the paper of Lengauer and Tarjan states the following:
  *
- *  "For any vertex [w <> r], [sdom(w) -+> w]."
+ *  "For any vertex [w <> 0], [sdom(w) -+> w]."
  *)
 Theorem LT_Lemma3 :
   forall w sdomw : nat, is_sdom_of sdomw w ->
@@ -231,9 +308,9 @@ Proof.
   (* Part 1: let [parw] be the tree-parent of [w]. *)
   assert (exists par : nat, par --> w)
     as [parw] by (apply (FG_valid__node_has_par w); auto).
-  (* Part 2: Since [parw --> w], [sdomw <:= parw <: w], so [sdomw <: w].
+  (* Part 2: Since [parw --> w], [sdomw <= parw < w], so [sdomw < w].
    * Furthermore, there exists a path [path_sdomw_w] from [sdomw] to [w]
-   * of which all intermediate nodes are [>: w]. *)
+   * of which all intermediate nodes are [> w]. *)
   destruct H as [H [[path_sdomw_w path_sdom_path] sdomw_minimal_cand]].
   assert (sdomw < w).
   {
@@ -254,11 +331,11 @@ Proof.
   destruct anc_comm_anc as [path_cts_anc [anc_to_sdomw anc_to_w]].
   (* Part 4: prove that [sdomw = anc], from which the final goal follows.
    * How we do it: we use the path [path_sdomw_w], of which it is known that
-   * all strictly intermed. nodes are [>: w]. As [anc] is an ancestor of [w],
-   * by tree properties, we have [anc <:= w]. Thus, [anc] cannot be equal to
+   * all strictly intermed. nodes are [> w]. As [anc] is an ancestor of [w],
+   * by tree properties, we have [anc <= w]. Thus, [anc] cannot be equal to
    * any of the intermed. nodes. Thus, [anc] must be either equal to [sdomw]
    * or to [w]. [anc] can also not be equal to [w] because it is known that
-   * [anc <:= sdomw <: w]. Hence, the only possibility left is [anc = sdomw].
+   * [anc <= sdomw < w]. Hence, the only possibility left is [anc = sdomw].
    * The proof makes use of induction, which is
    * delegated to the helper lemma [LT_Lemma3_Helper]. *)
   assert (sdomw = anc). {
@@ -295,13 +372,35 @@ Definition path_cast {n n' m m' : nat} (e1: n = n')
 Defined.
 
 (* The [path_contains] property is preserved under [path_cast]. *)
-Lemma path_cast_preserves_path_contains :
+Lemma path_cast_preserves_path_contains_1 :
   forall {n n' m m' s: nat} (e1: n = n') (e2 : m = m') (p : path n m),
     path_contains s (path_cast e1 e2 p) -> path_contains s p.
 Proof.
   intros.
   rewrite <- e1 in H.
   rewrite <- e2 in H.
+  auto.
+Qed.
+
+(* The [path_contains] property is preserved under [path_cast]. *)
+Lemma path_cast_preserves_path_contains_2 :
+  forall {n n' m m' s: nat} (e1: n = n') (e2 : m = m') (p : path n m),
+    path_contains s p -> path_contains s (path_cast e1 e2 p).
+Proof.
+  intros.
+  rewrite <- e1.
+  rewrite <- e2.
+  auto.
+Qed.
+
+(* The [path_is_in_tree] property is preserved under [path_cast]. *)
+Lemma path_cast_preserves_path_is_in_tree :
+  forall {n n' m m': nat} (e1: n = n') (e2 : m = m') (p : path n m),
+    path_is_in_tree p -> path_is_in_tree (path_cast e1 e2 p).
+Proof.
+  intros.
+  rewrite <- e1.
+  rewrite <- e2.
   auto.
 Qed.
 
@@ -320,9 +419,8 @@ Notation "A +++ B" := (path_concat A B) (at level 50).
 (* If a property is true of all nodes in some path [p1] and
  * also of all nodes in some path [p2], then it is true of all
  * nodes in the concatenation of [p1] and [p2]. *)
-Lemma path_concat_preserves_path_contains :
-  forall n n' m : nat, forall p1 : path n n', forall p2 : path n' m,
-    forall P : nat -> Prop,
+Lemma path_concat_preserves_universal_prop :
+  forall (n n' m : nat) (p1 : path n n') (p2 : path n' m) (P : nat -> Prop),
       (forall x : nat, path_contains x p1 -> P x) ->
       (forall x : nat, path_contains x p2 -> P x) ->
       (forall x : nat, path_contains x (p1 +++ p2) -> P x).
@@ -331,7 +429,7 @@ Proof.
   induction p1.
   - simpl in H1.
     apply H0.
-    apply (path_cast_preserves_path_contains (eq_sym e) eq_refl p2).
+    apply (path_cast_preserves_path_contains_1 (eq_sym e) eq_refl p2).
     auto.
   - simpl in H1.
     destruct H1.
@@ -342,9 +440,25 @@ Proof.
       * auto.
 Qed.
 
+(* The concatenation of two tree paths is a tree path. *)
+Lemma path_concat_preserves_tree_path :
+  forall (n n' m : nat) (p1 : path n n') (p2 : path n' m),
+    path_is_in_tree p1 -> path_is_in_tree p2 -> path_is_in_tree (p1 +++ p2).
+Proof.
+  intros.
+  induction p1.
+  - simpl. simpl in H.
+    apply (path_cast_preserves_path_is_in_tree (eq_sym e) eq_refl p2).
+    auto.
+  - simpl. simpl in H. destruct H.
+    split.
+    + auto.
+    + apply IHp1; auto.
+Qed.
+
 (* Lemma 4 of the paper of Lengauer and Tarjan states the following:
  *
- *  "For any vertex w <> r, idom(w) -*> sdom(w)."
+ *  "For any vertex w <> 0, idom(w) -*> sdom(w)."
  *)
 Theorem LT_Lemma4 :
   forall w idomw sdomw : nat, node_in_fg w -> node_in_fg idomw ->
@@ -364,7 +478,7 @@ Proof.
   destruct ex_p1 as [p1 Hp1].
   (* We construct the path [p2] as the path that is the concatenation
    * of the DFS tree path from [0] to [sdomw] and the path from
-   * [sdomw] to [w] for which all intermediate nodes are [>: w]
+   * [sdomw] to [w] for which all intermediate nodes are [> w]
    * (such a path exists by definition because [sdomw] is
    * the semidomimator of [w]). *)
   assert (ex_p2 : exists p2 : path 0 w, forall n : nat,
@@ -374,7 +488,7 @@ Proof.
     destruct ex_p_sd as [p2a]. assert (H2' := H2).
     destruct H2' as [H2a [[p2b Hp2] H2c]].
     exists (p2a +++ p2b).
-    apply path_concat_preserves_path_contains.
+    apply path_concat_preserves_universal_prop.
     - intros. left.
       apply (path_subpath_in_tree_right 0 x sdomw p2a); auto.
     - intros.
@@ -394,12 +508,12 @@ Proof.
   destruct ex_p2 as [p2 Hp2].
   (* Now we constructed two paths from [0] to [w].
    * The path [p1] has the property that all its vertices
-   * are either an ancestor of [sdomw] or are [<:= sdomw].
+   * are either an ancestor of [sdomw] or are [<= sdomw].
    * The path [p2] has the property that all its vertices
-   * are either an ancestor of [sdomw] or are [>:= sdomw].
+   * are either an ancestor of [sdomw] or are [>= sdomw].
    * As [idomw] by definition is a vertex of all paths from [0] to [w],
    * we find that either [idomw -*> sdomw], in which the goal is proven, or
-   * [start_time idomw = start_time w], which contradicts [LT_Lemma2].*)
+   * [idomw = w], which contradicts [LT_Lemma2].*)
   specialize Hp1 with (n := idomw).
   specialize Hp2 with (n := idomw).
   assert (H1' := H1).
@@ -490,11 +604,81 @@ Proof.
       * auto.
 Qed.
 
+Lemma path_subpath_in_tree_left {a b : nat} (m : nat) (p : path a b) :
+  path_contains m p -> path_is_in_tree p -> (a -*> m).
+Proof.
+  intros H H0.
+  induction p.
+  - simpl. intros. rewrite <- e in H.
+    exists (path_refl a m H).
+    simpl. auto.
+  - simpl in H.
+    destruct H.
+    + exists (path_refl a m H).
+      simpl. auto.
+    + simpl in H0.
+      destruct H0 as [Ht H0].
+      assert (ex_p' : a' -*> m) by (apply IHp; auto).
+      destruct ex_p' as [p' Hp'].
+      exists (path_prepend a m a' p' o).
+      simpl. split; auto.
+Qed.
+
+Lemma path_subpath_in_tree_general {a b : nat} (n m : nat) (p : path a b) :
+  path_contains n p -> path_contains m p -> path_is_in_tree p ->
+    n -*> m \/ m -+> n.
+Proof. 
+  induction p.
+  - simpl. intros. left.
+    rewrite H in H0.
+    exists (path_refl n m H0).
+    simpl. auto.
+  - simpl.
+    intros Hn Hm Ht.
+    destruct Hn.
+    + destruct Hm.
+      * left. rewrite H in H0.
+        exists (path_refl n m H0).
+        simpl. auto.
+      * left.
+        apply (path_subpath_in_tree_left m
+          (path_cast H eq_refl (path_prepend a b a' p o))).
+          -- apply (path_cast_preserves_path_contains_2 H (eq_refl b)).
+             simpl. right. auto.
+          -- apply (path_cast_preserves_path_is_in_tree H eq_refl).
+             simpl. auto.
+    + destruct Hm.
+      * assert (Hnm := Nat.eq_dec n m).
+        destruct Hnm.
+        -- left. rewrite e.
+           exists (path_refl m m eq_refl).
+           simpl. auto.
+        -- right.
+           split.
+           ++ apply (path_subpath_in_tree_left n
+                (path_cast H0 eq_refl (path_prepend a b a' p o))).
+              ** apply (path_cast_preserves_path_contains_2 H0 eq_refl).
+                 simpl. right. auto.
+              ** apply (path_cast_preserves_path_is_in_tree H0 eq_refl).
+                 simpl. auto.
+           ++ auto.
+      * apply IHp; destruct Ht as [_ Ht]; auto.
+Qed.
+
+Lemma tree_path_trans : forall a b c, (a -*> b) -> (b -*> c) -> (a -*> c).
+Proof.
+  intros.
+  destruct H as [p1 Hp1].
+  destruct H0 as [p2 Hp2].
+  exists (p1 +++ p2).
+  apply path_concat_preserves_tree_path; auto.
+Qed.
+
 (* Helper lemma for the real lemma 5 from Lengauer and Tarjan's paper. *)
 Lemma LT_Lemma5_Helper : forall v w idomv idomw : nat,
   node_in_fg v -> node_in_fg idomv -> node_in_fg w -> node_in_fg idomw ->
     is_idom_of idomv v -> is_idom_of idomw w ->
-      v -*> w -> idomv -+> idomw -> idomw -+> v -> False.
+      (v -*> w) -> (idomv -+> idomw) -> (idomw -+> v) -> False.
 Proof.
   intros v w idomv idomw ifg1 ifg2 ifg3 ifg4 idom1 idom2 H1 H2 H3.
   assert (ex_p1 : exists p1 : path 0 v, ~ path_contains idomw p1). {
@@ -504,8 +688,8 @@ Proof.
     (* If [dom idomw v], then we must have [dom idomw idomv],
      * because [idomv] is dominated by all other dominators of [v]
      * by definition. Consider now the DFS tree path from [0] to [idomv];
-     * it contains only vertices that are [<:= idomv], and it must
-     * contain [idomw], which is [>: idomv]. This is a contradiction. *)
+     * it contains only vertices that are [<= idomv], and it must
+     * contain [idomw], which is [> idomv]. This is a contradiction. *)
     destruct idom1 as [idomv v Hv1 Hv2].
     specialize Hv2 with (k := idomw).
     assert (Hwv : dom idomw idomv) by (apply Hv2; auto).
@@ -531,7 +715,7 @@ Proof.
   destruct H1 as [p2 Hp2].
   assert (~ path_contains idomw (p1 +++ p2)). {
     apply all_neq_not_path_contains.
-    apply path_concat_preserves_path_contains.
+    apply path_concat_preserves_universal_prop.
     - apply not_path_contains_all_neq. auto.
     - intros. red. intros H0. rewrite H0 in H. clear H0.
       apply strict_ancestor_lower_start_time in H3.
@@ -546,17 +730,9 @@ Proof.
   contradiction.
 Qed.
 
-Lemma path_subpath_in_tree_general {a b : nat} (p : path a b) (n m : nat) :
-  path_contains n p -> path_contains m p -> n -*> m \/ m -*> n.
-Proof.
-Admitted.
-
-Lemma start_time_lt_nge : forall n m : nat, n < m <-> ~ m <= n.
-Proof. Admitted.
-
 (* Lemma 5 of the paper of Lengauer and Tarjan states the following:
  *
- *  "Let vertices v,w satisfy v -*> w.
+ *  "Let vertices v, w satisfy v -*> w.
  *   Then v -*> idom(w) or idom(w) -*> idom(v)."
  *
  * We make the additional assumption that [w <> 0], which is implicit in
@@ -565,59 +741,78 @@ Proof. Admitted.
  *)
 Theorem LT_Lemma5 :
   forall v w idomv idomw : nat, w <> 0 -> is_idom_of idomw w ->
-    is_idom_of idomv v -> (node_in_fg v /\ node_in_fg w /\ v -*> w) ->
-      (v -*> idomw \/ idomw -*> idomv).
+    is_idom_of idomv v -> node_in_fg v -> node_in_fg w ->
+      node_in_fg idomv -> node_in_fg idomw -> v -*> w ->
+        (v -*> idomw \/ idomw -*> idomv).
 Proof.
-  intros v w idomv idomw H1 H2 H3 H4.
-  destruct H4 as [H4a [H4b H4c]].
-  (*
+  intros v w idomv idomw H1 H2 H3 H4 H5 H6 H7 H8.
   (* Proof idea: [idomw] must lie on the tree path from [0] to [w].
-     The nodes [v] and hence [idomv] also lie on this tree path.
-     So we do case analysis:
-     we have that either [v -*> idomw] (proves goal) or [idomw -+> v], in which case we have that either [idomw -*> idomv] (proves goal) or [idomv -+> idomw]. In this latter case, where [idomv -+> idomw -+> v], we need to do additional work, but let's get there first.
-    *)
-  destruct H4c as [p Hp].
-  assert (path_contains v p). {
-    destruct p.
-    - simpl. symmetry. auto.
-    - simpl. left. reflexivity.
+   * The nodes [v] and hence [idomv] also lie on this tree path.
+   * So we do case analysis using [path_subpath_in_tree_general]:
+   * we have that either [v -*> idomw] (proves goal) or [idomw -+> v],
+   * in which case we have that either [idomw -*> idomv] (proves goal)
+   * or [idomv -+> idomw]. In this latter case, where
+   * [idomv -+> idomw -+> v], we need to do a lot of additional work,
+   * but the helper lemma [LT_Lemma5_Helper] takes care of that.
+   *)
+  assert (ex_p0w : 0 -*> w) by (apply FG_valid__path_from_root; auto).
+  destruct ex_p0w as [p0w Hp0w].
+  assert (path_contains idomw p0w). {
+    destruct H2 as [idomw w H2a H2b].
+    destruct H2a as [idomw w H2a H2c].
+    specialize H2c with (p := p0w).
+    auto.
   }
-  assert (path_contains idomw p). {
-    (* A dominator of [w] is contained in any path from [0] to [w]. *)
-    destruct H2 as [idomw w H2a H2c].
-    destruct H2a as [idomw w H2a H2b].
-    specialize H2b with (p := p).
+  assert (path_contains v p0w)
+    by (apply FG_valid__only_one_tree_path_from_root; auto).
+  assert (path_contains idomv p0w). {
+    apply FG_valid__only_one_tree_path_from_root.
+    - auto.
+    - apply (tree_path_trans _ v _).
+      + assert (v <> 0). {
+          apply (root_has_no_dom idomv).
+          destruct H3; auto.
+        }
+        apply LT_Lemma2; auto.
+      + auto.
   }
-  assert (disj1 : v -*> idomw \/ idomw -+> v). {
-    apply (path_subpath_in_tree_general p).
-    - destruct 
-  }
-  *)
+  assert (disj1 : v -*> idomw \/ idomw -+> v)
+    by (apply (path_subpath_in_tree_general _ _ p0w); auto).
+  assert (disj2 : idomw -*> idomv \/ idomv -+> idomw)
+    by (apply (path_subpath_in_tree_general _ _ p0w); auto).
+  destruct disj1.
+  - left. auto.
+  - destruct disj2.
+    + right. auto.
+    + exfalso.
+      apply (LT_Lemma5_Helper v w idomv idomw); auto.
+Qed.
 
-  assert (Ha : idomv -+> idomw) by admit.
-  assert (Hb : idomw -+> v) by admit.
-  (* Now that we know [idomv -+> idomw] and [idomw -+> v],
-   * we work toward a contradiction. *)
+(************************************************************************)
+(************************************************************************)
+(************************************************************************)
+(*****************                                      *****************)
+(*****************    This is where the proofs end.     *****************)
+(*****************                                      *****************)
+(************************************************************************)
+(************************************************************************)
+(************************************************************************)
+(************************************************************************)
 
-
-  
-
-Admitted.
-
-(* Lengauer, Tarjan:
- * The edges {(idom(w),w) | w in V\{r}} form a directed tree
- * rooted at r, (called the dominator tree of G), such that
- * v dominates w if and only if v is a proper ancestor of w
- * in the dominator tree.
+(* Theorem 1 (part 2) of the paper of Lengauer and Tarjan states the following:
  *
- * XXX: It is probably not necessary to prove this to get the final result!
+ *  "The edges [{(idom(w),w) | w in V\{0}}] form a directed tree
+ *   rooted at [0], (called the dominator tree of [G]), such that
+ *   [v] dominates [w] if and only if [v] is a proper ancestor of [w]
+ *   in the dominator tree."
  *)
-Theorem LT_Theorem1_Part2 : True (* XXX *).
+Theorem LT_Theorem1_Part2 : True (* How to even state this ;) *).
 Proof. Admitted.
 
-(* Lengauer, Tarjan:
- * Let w <> r. Suppose every u for which sdom(w) -+> u -*> w
- * satisfies sdom(u) >:= sdom(w). Then idom(w) = sdom(w).
+(* Theorem 2 of the paper of Lengauer and Tarjan states the following:
+ *
+ *  "Let [w <> 0]. Suppose every [u] for which [sdom(w) -+> u -*> w]
+ *   satisfies [sdom(u) >= sdom(w)]. Then [idom(w) = sdom(w)]."
  *)
 Theorem LT_Theorem2 :
   forall w idomw sdomw : nat, is_idom_of idomw w ->
@@ -629,10 +824,11 @@ Theorem LT_Theorem2 :
         -> idomw = sdomw.
 Proof. Admitted.
 
-(* Lengauer, Tarjan:
- * Let w <> r and let u be a vertex for which sdom(u) is minimum
- * among vertices u satisfying sdom(w) -+> u -*> w.
- * Then sdom(u) <:= sdom(w) and idom(u) = idom(w).
+(* Theorem 3 of the paper of Lengauer and Tarjan states the following:
+ *
+ *  "Let [w <> 0] and let [u] be a vertex for which [sdom(u)] is minimum
+ *   among vertices [u] satisfying [sdom(w) -+> u -*> w].
+ *   Then [sdom(u) <= sdom(w)] and [idom(u) = idom(w)]."
  *)
 Theorem LT_Theorem3 :
   forall w u idomu idomw sdomu sdomw : nat, is_sdom_of sdomu u ->
@@ -643,12 +839,12 @@ Theorem LT_Theorem3 :
     (sdomu <= sdomw /\ idomu = idomw).
 Proof. Admitted.
 
-
-(* Lengauer, Tarjan:
- * Let w <> r and let u be a vertex for which sdom(u) is minimum
- * among vertices u satisfying sdom(w) -+> u -*> w.
- * Then idom(w) = sdom(w) if sdom(w) = sdom(u), and
- * idom(w) = idom(u) otherwise.
+(* Corollary 1 of the paper of Lengauer and Tarjan states the following:
+ *
+ *  "Let [w <> 0] and let [u] be a vertex for which [sdom(u)] is minimum
+ *   among vertices [u] satisfying [sdom(w) -+> u -*> w].
+ *   Then [idom(w) = sdom(w)] if [sdom(w) = sdom(u)], and
+ *   [idom(w) = idom(u)] otherwise."
  *)
 Theorem LT_Corollary1 :
   forall w u idomu idomw sdomu sdomw: nat, is_idom_of idomu u ->
@@ -663,13 +859,15 @@ Proof. Admitted.
 Inductive is_minimum_of (n : nat) (P : nat -> Prop) : Prop :=
   | is_min : P n -> (forall n' : nat, P n' -> n <= n') -> is_minimum_of n P.
 
-(* Lengauer, Tarjan:
- * If w is not the root node, then
-   sdom w = min(
-           {v | v ==> w and v <: w}
-             union
-           {sdom(u) | u >: w and there is an edge v ==> w such that u -*> v}
-          ).
+(* Theorem 4 of the paper of Lengauer and Tarjan states the following:
+ *
+ *  "If w is not the root node, then
+ *   sdom w = min(
+ *           {v | v ==> w and v < w}
+ *             union
+ *           {sdom(u) | u > w and there is an edge v ==> w such that u -*> v}
+ *          ).
+ *  "
  *)
 Theorem LT_Theorem4 :
   forall w sdomw : nat, is_sdom_of sdomw w -> w <> 0 -> node_in_fg w ->
@@ -680,8 +878,7 @@ Theorem LT_Theorem4 :
         exists u v : nat, is_sdom_of x u /\ node_in_fg u /\
           node_in_fg v /\ u > w /\ v ==> w /\ u -*> v
       )
-  )
-.
+  ).
 Proof. Admitted.
 
 End Dominators.
