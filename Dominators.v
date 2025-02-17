@@ -33,6 +33,7 @@ Notation "A ~~> B" := (other_edges A B) (at level 70).
 (* there is an edge (either tree or non-tree) from [A] to [B] *)
 Notation "A ==> B" := (A --> B \/ A ~~> B) (at level 70).
 
+(* A path from a to b *)
 Inductive path (a b : nat) : Type :=
   | path_refl :
       a = b -> path a b
@@ -102,7 +103,7 @@ Axiom LT_Lemma1 :
     exists m : nat, path_contains m p /\ m -*> v /\ m -*> w.
 
 (* Simple helper lemmas. *)
-Lemma ancestor_lower_start_time : forall n m : nat , n -*> m -> n <= m.
+Lemma ancestor_lower_start_time : forall n m : nat, n -*> m -> n <= m.
 Proof.
   intros n m [p]. induction p.
   - apply Nat.eq_le_incl. auto.
@@ -113,7 +114,7 @@ Proof.
 Qed.
 
 Lemma strict_ancestor_lower_start_time :
-  forall n m : nat , n -+> m -> n < m.
+  forall n m : nat, n -+> m -> n < m.
 Proof.
   intros n m [[p Hp] e]. destruct p.
   - contradiction.
